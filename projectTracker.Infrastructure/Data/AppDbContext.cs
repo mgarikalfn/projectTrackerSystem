@@ -33,32 +33,64 @@ namespace ProjectTracker.Infrastructure.Data
 
                     h.Property(h => h.Reason)
                         .HasColumnName("HealthReason");
+
+                    h.Property(h => h.Score)
+                        .HasColumnName("HealthScore");
+
+                    h.Property(h => h.Confidence)
+                        .HasColumnName("HealthConfidence");
                 });
 
                 entity.OwnsOne(p => p.Progress, p =>
                 {
+                    // Required properties
                     p.Property(p => p.TotalTasks)
-                        .HasColumnName("TotalTasks");
+                        .HasColumnName("TotalTasks")
+                        .IsRequired();
 
                     p.Property(p => p.CompletedTasks)
-                        .HasColumnName("CompletedTasks");
+                        .HasColumnName("CompletedTasks")
+                        .IsRequired();
 
                     p.Property(p => p.StoryPointsTotal)
-                        .HasColumnName("StoryPointsTotal");
+                        .HasColumnName("StoryPointsTotal")
+                        .IsRequired();
 
                     p.Property(p => p.StoryPointsCompleted)
-                        .HasColumnName("StoryPointsCompleted");
+                        .HasColumnName("StoryPointsCompleted")
+                        .IsRequired();
 
-                    p.Property(p => p.OnTrackPercentage)
-                        .HasColumnName("ProgressPercentage");
+                    // New properties from your ProgressMetrics
+                    p.Property(p => p.ActiveBlockers)
+                        .HasColumnName("ActiveBlockers")
+                        .IsRequired();
+
+                    p.Property(p => p.RecentUpdates)
+                        .HasColumnName("RecentUpdates")
+                        .IsRequired();
+
+                   
                 });
 
-                // Indexes
-                entity.HasIndex(p => p.Key).IsUnique();
-                entity.Property(p => p.Key).IsRequired();
-                entity.Property(p => p.Name).IsRequired();
-            });
+                // Core properties
+                entity.Property(p => p.Key)
+                    .IsRequired()
+                    .HasMaxLength(50);  // Consider adding length limit
 
+                entity.Property(p => p.Name)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(p => p.Description)
+                    .HasMaxLength(500);
+
+                entity.Property(p => p.Lead)
+                    .HasMaxLength(100);
+
+                // Indexes
+                entity.HasIndex(p => p.Key)
+                    .IsUnique();
+            });
             // ProjectTask Entity Configuration
             modelBuilder.Entity<ProjectTask>(entity =>
             {

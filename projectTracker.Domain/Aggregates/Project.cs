@@ -24,8 +24,8 @@ namespace projectTracker.Domain.Aggregates
        
 
         // Domain Logic
-        public bool IsAtRisk => Health.Level == HealthLevel.AtRisk;
-        public bool IsOnTrack => Progress.OnTrackPercentage >= 80;
+        public bool AtRisk => Health.Level == HealthLevel.AtRisk;
+       // public bool IsOnTrack => Progress.OnTrackPercentage >= 80;
 
         // Navigation (for domain rules)
         private readonly List<ProjectTask> _tasks = new();
@@ -61,7 +61,7 @@ namespace projectTracker.Domain.Aggregates
         private Project() { }
 
         // Factory Method
-        public static Project Create(string Id,string key, string name)
+        public static Project Create(string Id,string key, string name,string? Lead,string? Description)
         {
             
             if (string.IsNullOrWhiteSpace(key))
@@ -77,6 +77,8 @@ namespace projectTracker.Domain.Aggregates
                 Id = Id,
                 Key = key,
                 Name = name,
+                Lead = Lead,
+                Description = Description,
                 Health = ProjectHealth.Unknown(),
                 Progress = ProgressMetrics.Empty()
             };
