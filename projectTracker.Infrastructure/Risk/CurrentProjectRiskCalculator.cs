@@ -27,7 +27,7 @@ public class CurrentProjectRiskCalculator
         var level = compositeScore switch
         {
             <= 0.4 => HealthLevel.OnTrack,        // Projects with composite score up to 0.4 are On Track
-            <= 0.7 => HealthLevel.AtRisk, // Projects with composite score between 0.4 and 0.7 need attention
+            <= 0.7 => HealthLevel.NeedAttension, // Projects with composite score between 0.4 and 0.7 need attention
             _ => HealthLevel.Critical             // Projects with composite score above 0.7 are Critical
         };
 

@@ -8,6 +8,6 @@ namespace projectTracker.Domain.Enums
 {
     public enum HealthLevel
     {
-        OnTrack, AtRisk, Critical , Unknown
+        OnTrack, NeedAttension, Critical , Unknown
     }
 }

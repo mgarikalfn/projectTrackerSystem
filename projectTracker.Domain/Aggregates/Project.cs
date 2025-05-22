@@ -24,7 +24,7 @@ namespace projectTracker.Domain.Aggregates
        
 
         // Domain Logic
-        public bool AtRisk => Health.Level == HealthLevel.AtRisk;
+        public bool Critical => Health.Level == HealthLevel.Critical;
        // public bool IsOnTrack => Progress.OnTrackPercentage >= 80;
 
         // Navigation (for domain rules)
