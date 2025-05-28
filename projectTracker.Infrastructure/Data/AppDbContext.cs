@@ -12,6 +12,11 @@ namespace ProjectTracker.Infrastructure.Data
         public DbSet<Project> Projects { get; set; }
         public DbSet<ProjectTask> Tasks { get; set; }
         public DbSet<SyncHistory> SyncHistory { get; set; }
+        public DbSet<AppUser> Users { get; set; }
+        public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<Privilege> Privileges { get; set; }
+        public DbSet<RolePrivilege> RolePrivileges { get; set; }
+        public DbSet<UserRoleMapping> UserRoleMappings { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -69,7 +74,7 @@ namespace ProjectTracker.Infrastructure.Data
                         .HasColumnName("RecentUpdates")
                         .IsRequired();
 
-                   
+
                 });
 
                 // Core properties
@@ -159,6 +164,46 @@ namespace ProjectTracker.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(s => s.ProjectId);
             });
+
+
+
+            // configuring identity classes
+
+            modelBuilder.Entity<UserRole>(role =>
+            {
+                role.HasKey(s => s.Id);
+                role.Property(r => r.RoleName).IsRequired().HasMaxLength(256);
+                role.Property(r => r.Description).HasMaxLength(500);
+            });
+
+
+            modelBuilder.Entity<RolePrivilege>(rp =>
+            {
+                rp.HasKey(rp => new { rp.RoleId, rp.PrivilageId });
+                rp.HasOne(rp => rp.Role)
+                    .WithMany(r => r.RolePrivilage)
+                    .HasForeignKey(rp => rp.RoleId);
+
+                rp.HasOne(rp => rp.Privilage)
+                    .WithMany(p => p.RolePrivilage)
+                    .HasForeignKey(rp => rp.PrivilageId);
+            });
+
+            modelBuilder.Entity<UserRoleMapping>(b =>
+            {
+                b.ToTable("UserRoleMappings"); // optional rename
+                b.HasKey(x => new { x.UserId, x.RoleId });
+
+                // Relationships (optional if handled by Identity automatically)
+                b.HasOne<AppUser>()
+                    .WithMany()
+                    .HasForeignKey(urm => urm.UserId);
+
+                b.HasOne<UserRole>()
+                    .WithMany()
+                    .HasForeignKey(urm => urm.RoleId);
+            });
+
         }
     }
 }
