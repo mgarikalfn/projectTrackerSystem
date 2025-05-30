@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using projectTracker.Application.Interfaces;
@@ -37,6 +38,8 @@ namespace projectTracker.Api.Controllers
             var calculatedRisk = _riskCalculator.Calculate(metrics); 
             return Ok(calculatedRisk);
         }
+
+        [AllowAnonymous]
         [HttpGet("GetProjects")]
         public async Task<IActionResult> GetProjects()
         {

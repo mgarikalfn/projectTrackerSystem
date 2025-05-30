@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using projectTracker.Domain.Aggregates;
 using projectTracker.Domain.Entities;
 using projectTracker.Domain.Enums;
@@ -6,7 +8,11 @@ using projectTracker.Domain.Enums;
 
 namespace ProjectTracker.Infrastructure.Data
 {
-    public class AppDbContext : DbContext
+    public class AppDbContext : IdentityDbContext<AppUser, UserRole, string,
+                                              IdentityUserClaim<string>, UserRoleMapping,
+                                              IdentityUserLogin<string>,
+                                              IdentityRoleClaim<string>,
+                                              IdentityUserToken<string>>
     {
 
         public DbSet<Project> Projects { get; set; }
@@ -22,6 +28,7 @@ namespace ProjectTracker.Infrastructure.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
             // Project Aggregate Configuration
             modelBuilder.Entity<Project>(entity =>
             {

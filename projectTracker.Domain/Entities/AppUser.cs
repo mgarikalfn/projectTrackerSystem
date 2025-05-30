@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace projectTracker.Domain.Entities
 {
-    public class AppUser : IdentityUser<String>
+    public class AppUser : IdentityUser
     {
         public string FirstName { get; set; } = String.Empty;
         public string LastName { get; set; } = String.Empty;
