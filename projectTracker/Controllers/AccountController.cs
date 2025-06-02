@@ -5,6 +5,8 @@ using projectTracker.Application.Interfaces;
 using projectTracker.Application.Dto.Account;
 using Microsoft.AspNetCore.Authorization;
 using Azure.Core;
+using projectTracker.Application.Features.Role.Command;
+using MediatR;
 
 namespace projectTracker.Api.Controllers
 {
@@ -15,12 +17,14 @@ namespace projectTracker.Api.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly ITokenService _tokenService;
         private readonly SignInManager<AppUser> _signInManager;
+        private readonly IMediator _mediator;
 
-        public AccountController(UserManager<AppUser> userManager, ITokenService tokenService, SignInManager<AppUser> signInManager)
+        public AccountController(UserManager<AppUser> userManager, ITokenService tokenService, SignInManager<AppUser> signInManager, IMediator mediator)
         {
             _userManager = userManager;
             _tokenService = tokenService;
             _signInManager = signInManager;
+            _mediator = mediator;
         }
         [AllowAnonymous]
         [HttpPost("signup")]
@@ -67,6 +71,15 @@ namespace projectTracker.Api.Controllers
 
             var token = await _tokenService.GenerateToken(user);
             return Ok(new { token });
+        }
+
+        [HttpPost("Assign-Role")]
+        public async Task<IActionResult> AssignRoleToUser([FromBody] AssignRoleCommand request)
+        {
+            var result = _mediator.Send(request);
+            return result.IsCompletedSuccessfully
+                ? Ok(result.Result)
+                : BadRequest(result.Result.Errors.FirstOrDefault()?.Message);
         }
     }
 }

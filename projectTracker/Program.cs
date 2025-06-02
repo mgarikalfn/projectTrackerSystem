@@ -1,13 +1,16 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.OpenApi.Models;
-using projectTracker.Domain.Entities;
+using projectTracker.Application.Interfaces;
+using projectTracker.Application;
+using projectTracker.Infrastructure.Adapter;
 using projectTracker.Infrastructure.BackgroundTask;
 using projectTracker.Infrastructure.Extensions;
 using projectTracker.Infrastructure.Middleware;
-using projectTracker.Infrastructure.Seeder;
-using ProjectTracker.Infrastructure.Data;
-using System.Text;
+using projectTracker.Infrastructure.Risk;
+using projectTracker.Infrastructure.Services;
+using projectTracker.Infrastructure.SyncManager;
+using YourProject.Infrastructure;
+using projectTracker.Application.Common;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,9 +52,14 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+
+
+builder.Services.AddInfrastructure();
+builder.Services.AddApplication();
 // 4. Register other services
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<JiraSyncService>();
+
 
 var app = builder.Build();
 
