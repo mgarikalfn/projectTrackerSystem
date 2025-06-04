@@ -20,5 +20,6 @@ namespace projectTracker.Application.Interfaces
             Func<IQueryable<T>, IQueryable<T>> includes = null,  // Added optional param
             CancellationToken cancellationToken = default);       // Added cancellation token
         Task<IReadOnlyList<T>> GetWhereAsync(Expression<Func<T, bool>> predicate);
+        Task SaveChangesAsync();
     }
 }

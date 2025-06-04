@@ -1,10 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace projectTracker.Application.Dto.Role
 {
-    public record RoleDto(DateTime CreatedAt, string Name, string Description,  List<string> Privilages);
+    public record RoleDto(
+        DateTime CreatedAt,
+        string Name,
+        string Description,
+        List<string> Permissions
+    );
+
+    public record RolePermissionDto(
+        string PermissionId,
+        string PermissionName
+        
+    );
+
+    //public class UpdateRoleDto
+    //{
+    //    public string? RoleName { get; set; }
+    //    public string? Description { get; set; }
+    //    public List<string> PermissionIdsToAdd = new List<string>();
+    //}
 }

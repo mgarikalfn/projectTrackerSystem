@@ -1,20 +1,12 @@
-﻿using System.Linq;
-using AutoMapper;
-using FluentResults;
+﻿using AutoMapper;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Identity.Client;
 using projectTracker.Application.Dto.Role;
 using projectTracker.Application.Features.Role.Command;
 using projectTracker.Application.Features.Role.Query;
 
 //using projectTracker.Application.Features.Role.Query;
-using projectTracker.Application.Interfaces;
-using projectTracker.Domain.Entities;
 
 namespace projectTracker.Api.Controllers
 {
@@ -69,9 +61,9 @@ namespace projectTracker.Api.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> UpdateRole(string id, [FromBody] UpdateRoleDto updateRole)
+        public async Task<ActionResult> UpdateRole(string id , [FromBody] RoleUpdateDto roleDto)
         {
-            var command = _mapper.Map<UpdateRoleCommand>(updateRole);
+            var command = _mapper.Map<UpdateRoleCommand>(roleDto);
             command.Id = id;
             var result = await _mediator.Send(command);
             return Ok(result);
@@ -83,14 +75,17 @@ namespace projectTracker.Api.Controllers
             var result = _mediator.Send(new DeleteRoleCommand { Id = id });
             return Ok(result);
         }
-
         [HttpPost("assign-privileges")]
-        public async Task<IActionResult> AssignPrivileges([FromBody] AssignPrivilegeCommand request)
+        public async Task<IActionResult> AssignPrivileges([FromBody] AssignPermissionCommand request)
         {
-            var result = _mediator.Send(request);
-            return result.IsCompletedSuccessfully
-                ? Ok(result.Result)
-                : BadRequest(result.Result.Errors.FirstOrDefault()?.Message);
+            var result = await _mediator.Send(request);
+
+            if (result.IsSuccess)
+            {
+                return Ok(result.Value);
+            }
+
+            return BadRequest(result.Errors.FirstOrDefault()?.Message);
         }
     }
 }

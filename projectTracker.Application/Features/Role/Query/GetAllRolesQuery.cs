@@ -29,10 +29,10 @@ namespace projectTracker.Application.Features.Role.Query
                  role.CreatedAt,
                  role.Name,
                  role.Description,
-                 role.RolePrivilage.Select(rp => rp.Privilage.PrivilageName).ToList()
+                 role.RolePermissions.Select(rp => rp.Permission.PermissionName).ToList()
                    )).ToList();
 
-            return roleDtos;
+            return  roleDtos;
         }
     }
 }

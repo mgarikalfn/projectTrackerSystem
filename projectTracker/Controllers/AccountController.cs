@@ -73,13 +73,25 @@ namespace projectTracker.Api.Controllers
             return Ok(new { token });
         }
 
-        [HttpPost("Assign-Role")]
-        public async Task<IActionResult> AssignRoleToUser([FromBody] AssignRoleCommand request)
+        public class AssignRoleResultDto
         {
-            var result = _mediator.Send(request);
-            return result.IsCompletedSuccessfully
-                ? Ok(result.Result)
-                : BadRequest(result.Result.Errors.FirstOrDefault()?.Message);
+            public bool Success { get; set; }
+            public string Message { get; set; }
+            public IEnumerable<string> Errors { get; set; }
+        }
+
+        // Then in your controller:
+        [HttpPost("assign-roles")]
+        [AllowAnonymous]
+        public async Task<ActionResult<AssignRoleResultDto>> AssignRoles([FromBody] AssignRoleCommand command)
+        {
+            var result = await _mediator.Send(command);
+            return Ok(new AssignRoleResultDto
+            {
+                Success = result.IsSuccess,
+                Message = result.IsSuccess ? result.Value : null,
+                Errors = result.IsFailed ? result.Errors.Select(e => e.Message) : null
+            });
         }
     }
 }

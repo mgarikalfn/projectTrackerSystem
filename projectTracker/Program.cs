@@ -1,20 +1,19 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using projectTracker.Application.Interfaces;
 using projectTracker.Application;
-using projectTracker.Infrastructure.Adapter;
+using projectTracker.Infrastructure;
 using projectTracker.Infrastructure.BackgroundTask;
 using projectTracker.Infrastructure.Extensions;
 using projectTracker.Infrastructure.Middleware;
-using projectTracker.Infrastructure.Risk;
-using projectTracker.Infrastructure.Services;
-using projectTracker.Infrastructure.SyncManager;
-using YourProject.Infrastructure;
-using projectTracker.Application.Common;
-using System.Runtime.InteropServices;
+using ProjectTracker.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Register all core services (JWT, DbContext, Identity)
+//// For ASP.NET Core
+//builder.Services.AddDbContext<AppDbContext>(options =>
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+//1.Register all core services (JWT, DbContext, Identity)
 builder.Services.AddProjectTrackerServices(builder.Configuration);
 
 // 2. Configure controllers with global authorization
@@ -60,6 +59,15 @@ builder.Services.AddApplication();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<JiraSyncService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy => policy.WithOrigins("http://localhost:3000")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod());
+});
+
+//app.UseCors("AllowFrontend");
 
 var app = builder.Build();
 

@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using AutoMapper;
 using FluentResults;
 using MediatR;
 using projectTracker.Application.Interfaces;
@@ -14,38 +13,88 @@ namespace projectTracker.Application.Features.Role.Command
     public class UpdateRoleCommand : IRequest<Result<string>>
     {
         public string Id { get; set; }
+        public string Name { get; set; }       // Optional
+        public string Description { get; set; } // Optional
+        public List<string> PermissionIdsToAdd { get; set; } // Optional
     }
 
+    public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, Result<string>>
+    {
+        private readonly IUnitOfWork _unitOfWork;
 
-    public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, Result<String>>
-    { 
-
-        private readonly IRepository<UserRole> _roleRepository;
-        private readonly IMapper _mapper;
-
-        public UpdateRoleCommandHandler(IRepository<UserRole> roleRepository , IMapper mapper)
+        public UpdateRoleCommandHandler(IUnitOfWork unitOfWork)
         {
-           _roleRepository = roleRepository;
-            _mapper = mapper;
+            _unitOfWork = unitOfWork;
         }
+
         public async Task<Result<string>> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
         {
-
-            var role = await _roleRepository.GetByIdAsync(request.Id);
-            if (role == null)
-            {
-                return Result.Fail<string>("Role not found");   
-            }
-
-            _mapper.Map<UserRole>(request);
+            await _unitOfWork.BeginTransactionAsync();
 
             try
             {
-                var updateResult = await _roleRepository.UpdateAsync(role);
-                return updateResult ? Result.Ok(role.Id) : Result.Fail<string>("update failed");
+                // 1. Get existing role
+                var role = await _unitOfWork.RoleRepository.GetByIdAsync(request.Id);
+                if (role == null)
+                {
+                    return Result.Fail<string>("Role not found");
+                }
+
+                // Track if any role properties changed
+                bool hasChanges = false;
+
+                // 2. Update only provided properties (partial update)
+                if (request.Name != null && role.Name != request.Name)
+                {
+                    role.Name = request.Name;
+                    role.NormalizedName = request.Name.ToUpper();
+                    hasChanges = true;
+                }
+
+                if (request.Description != null && role.Description != request.Description)
+                {
+                    role.Description = request.Description;
+                    hasChanges = true;
+                }
+
+                // Only update if any role properties changed
+                if (hasChanges)
+                {
+                    await _unitOfWork.RoleRepository.UpdateAsync(role);
+                }
+
+                // 3. Handle new permissions (if any provided)
+                if (request.PermissionIdsToAdd != null && request.PermissionIdsToAdd.Any())
+                {
+                    var existingPermissionIds = (await _unitOfWork.RolePermissionRepository.GetAllAsync())
+                        .Where(rp => rp.RoleId == request.Id)
+                        .Select(rp => rp.PermissionId)
+                        .ToList();
+
+                    var validPermissions = (await _unitOfWork.PermissionRepository.GetAllAsync())
+                        .Where(p => request.PermissionIdsToAdd.Contains(p.Id))
+                        .ToList();
+
+                    foreach (var permission in validPermissions)
+                    {
+                        if (!existingPermissionIds.Contains(permission.Id))
+                        {
+                            await _unitOfWork.RolePermissionRepository.AddAsync(new RolePermission
+                            {
+                                RoleId = role.Id,
+                                PermissionId = permission.Id
+                                
+                            });
+                        }
+                    }
+                }
+
+                await _unitOfWork.CommitAsync();
+                return Result.Ok(role.Id);
             }
             catch (Exception ex)
             {
+                await _unitOfWork.RollbackAsync();
                 return Result.Fail<string>($"Update failed: {ex.Message}");
             }
         }

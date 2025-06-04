@@ -10,11 +10,13 @@ namespace projectTracker.Application.Interfaces
     public interface IUnitOfWork : IDisposable
     {
         // Repositories
-        IRepository<Privilege> UserRepository { get; }
+        IRepository<AppUser> UserRepository { get; }
         IRepository<UserRole> RoleRepository { get; }
         IRepository<UserRoleMapping> UserRoleMappingRepository { get; }
-        IRepository<Privilege> PrivilegeRepository { get; }
-        IRepository<RolePrivilege> RolePrivilegeRepository { get; }
+        //IRepository<Privilege> PrivilegeRepository { get; }
+        //IRepository<RolePrivilege> RolePrivilegeRepository { get; }
+        IRepository<Permission> PermissionRepository { get; }
+        IRepository<RolePermission> RolePermissionRepository { get; }
 
         // Transaction Management
         Task BeginTransactionAsync();

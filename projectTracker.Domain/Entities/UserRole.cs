@@ -12,6 +12,7 @@ namespace projectTracker.Domain.Entities
         public string RoleName { get; set; } = String.Empty;
         public string Description { get; set; } = String.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public ICollection<RolePrivilege> RolePrivilage { get; set; } = new List<RolePrivilege>();
+        
+        public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();   
     }
 }

@@ -26,74 +26,108 @@ namespace projectTracker.Application.Features.Role.Command
             IUnitOfWork unitOfWork,
             ILogger<AssignRoleCommandHandler> logger)
         {
-            _unitOfWork = unitOfWork;
-            _logger = logger;
+            _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<Result<string>> Handle(AssignRoleCommand request, CancellationToken cancellationToken)
         {
-            // 1. Validate user exists
-            var user = await _unitOfWork.UserRepository.GetByIdAsync(request.UserId);
-            if (user == null)
-            {
-                return Result.Fail<string>("User not found");
-            }
-
-            // 2. Validate all role IDs exist
-            var allRoles = await _unitOfWork.RoleRepository.GetAllAsync();
-            var invalidRoleIds = request.RoleIds.Except(allRoles.Select(r => r.Id)).ToList();
-
-            if (invalidRoleIds.Any())
-            {
-                return Result.Fail<string>($"Invalid role IDs detected: {string.Join(", ", invalidRoleIds)}");
-            }
-
-            // 3. Start transaction
-            await _unitOfWork.BeginTransactionAsync();
-
             try
             {
-                // 4. Get existing role mappings for the user
-                var existingMappings = await _unitOfWork.UserRoleMappingRepository
-                    .GetWhereAsync(urm => urm.UserId == request.UserId);
+                // Validate input
+                if (request == null)
+                    return Result.Fail<string>("Request cannot be null");
 
-                // 5. Determine mappings to remove (not in the new list)
-                var mappingsToRemove = existingMappings
-                    .Where(em => !request.RoleIds.Contains(em.RoleId))
-                    .ToList();
+                if (string.IsNullOrWhiteSpace(request.UserId))
+                    return Result.Fail<string>("User ID is required");
 
-                // 6. Determine mappings to add (not already assigned)
-                var mappingsToAdd = request.RoleIds
-                    .Except(existingMappings.Select(em => em.RoleId))
-                    .Select(roleId => new UserRoleMapping
+                request.RoleIds ??= new List<string>();
+
+                // Validate user exists
+                var user = await _unitOfWork.UserRepository.GetByIdAsync(request.UserId);
+                if (user == null)
+                {
+                    return Result.Fail<string>("User not found");
+                }
+
+                // Early return if no roles to assign
+                if (!request.RoleIds.Any())
+                {
+                    return Result.Ok("No roles to assign");
+                }
+
+                // Validate all role IDs exist
+                var existingRoles = await _unitOfWork.RoleRepository
+                    .GetWhereAsync(r => request.RoleIds.Contains(r.Id));
+
+                var existingRoleIds = existingRoles.Select(r => r.Id).ToList();
+                var invalidRoleIds = request.RoleIds.Except(existingRoleIds).ToList();
+
+                if (invalidRoleIds.Any())
+                {
+                    return Result.Fail<string>($"Invalid role IDs detected: {string.Join(", ", invalidRoleIds)}");
+                }
+
+                // Start transaction
+                await _unitOfWork.BeginTransactionAsync();
+
+                try
+                {
+                    // Get existing role mappings
+                    var existingMappings = await _unitOfWork.UserRoleMappingRepository
+                        .GetWhereAsync(urm => urm.UserId == request.UserId);
+
+                    // Determine changes
+                    var currentRoleIds = existingMappings.Select(em => em.RoleId).ToList();
+                    var rolesToRemove = currentRoleIds.Except(request.RoleIds).ToList();
+                    var rolesToAdd = request.RoleIds.Except(currentRoleIds).ToList();
+
+                    // Remove unwanted mappings
+                    if (rolesToRemove.Any())
                     {
-                        UserId = request.UserId,
-                        RoleId = roleId,
-                        AssignedAt = DateTime.UtcNow
-                    })
-                    .ToList();
+                        var mappingsToRemove = existingMappings
+                            .Where(em => rolesToRemove.Contains(em.RoleId))
+                            .ToList();
 
-                // 7. Execute changes
-                foreach (var mapping in mappingsToRemove)
-                {
-                    await _unitOfWork.UserRoleMappingRepository.DeleteAsync(mapping);
+                        foreach (var mapping in mappingsToRemove)
+                        {
+                            await _unitOfWork.UserRoleMappingRepository.DeleteAsync(mapping);
+                        }
+                    }
+
+                    // Add new mappings
+                    if (rolesToAdd.Any())
+                    {
+                        var newMappings = rolesToAdd
+                            .Select(roleId => new UserRoleMapping
+                            {
+                                UserId = request.UserId,
+                                RoleId = roleId,
+                                AssignedAt = DateTime.UtcNow
+                            })
+                            .ToList();
+
+                        foreach (var mapping in newMappings)
+                        {
+                            await _unitOfWork.UserRoleMappingRepository.AddAsync(mapping);
+                        }
+                    }
+
+                    // Commit transaction
+                    await _unitOfWork.CommitAsync();
+                    return Result.Ok("Roles assigned successfully");
                 }
-
-                foreach (var mapping in mappingsToAdd)
+                catch (Exception ex)
                 {
-                    await _unitOfWork.UserRoleMappingRepository.AddAsync(mapping);
+                    await _unitOfWork.RollbackAsync();
+                    _logger.LogError(ex, "Transaction failed while assigning roles to user {UserId}", request.UserId);
+                    return Result.Fail<string>($"Failed to assign roles: {ex.Message}");
                 }
-
-                // 8. Commit transaction
-                await _unitOfWork.CommitAsync();
-
-                return Result.Ok("Roles assigned successfully");
             }
             catch (Exception ex)
             {
-                await _unitOfWork.RollbackAsync();
-                _logger.LogError(ex, "Error assigning roles to user {UserId}", request.UserId);
-                return Result.Fail<string>($"Failed to assign roles: {ex.Message}");
+                _logger.LogError(ex, "Error in AssignRoleCommandHandler for user {UserId}", request.UserId);
+                return Result.Fail<string>($"An unexpected error occurred: {ex.Message}");
             }
         }
     }

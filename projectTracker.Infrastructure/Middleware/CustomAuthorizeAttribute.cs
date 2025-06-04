@@ -58,10 +58,10 @@ namespace projectTracker.Infrastructure.Middleware
                     .ToListAsync();
 
                 // Step 2: Use those IDs to get privileges
-                var userPrivileges = await dbContext.RolePrivileges
+                var userPrivileges = await dbContext.RolePermissions
                     .Where(rp => roleIds.Contains(rp.RoleId))
-                    .Include(rp => rp.Privilage)
-                    .Select(rp => rp.Privilage.PrivilageName)
+                    .Include(rp => rp.Permission)
+                    .Select(rp => rp.Permission.PermissionName)
                     .ToListAsync();
 
 
@@ -73,8 +73,8 @@ namespace projectTracker.Infrastructure.Middleware
                 if (!hasPrivilege)
                 {
                     // Additional debug: Check if the privilege exists at all in the system
-                    var privilegeExists = await dbContext.Privileges
-                        .AnyAsync(p => p.PrivilageName == requiredPrivilege);
+                    var privilegeExists = await dbContext.Permissions
+                        .AnyAsync(p => p.PermissionName == requiredPrivilege);
 
                     logger.LogWarning($"Access denied - User {userId} lacks privilege {requiredPrivilege}");
                     logger.LogWarning($"Privilege exists in system: {privilegeExists}");
@@ -82,8 +82,8 @@ namespace projectTracker.Infrastructure.Middleware
                     // Check role assignments for this privilege
                     if (privilegeExists)
                     {
-                        var rolesWithPrivilege = await dbContext.RolePrivileges
-                            .Where(rp => rp.Privilage.PrivilageName == requiredPrivilege)
+                        var rolesWithPrivilege = await dbContext.RolePermissions
+                            .Where(rp => rp.Permission.PermissionName == requiredPrivilege)
                             .Select(rp => rp.RoleId)
                             .ToListAsync();
 

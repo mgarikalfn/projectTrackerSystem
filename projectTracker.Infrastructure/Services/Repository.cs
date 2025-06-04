@@ -59,5 +59,25 @@ namespace projectTracker.Infrastructure.Services
 
         public async Task<IReadOnlyList<T>> GetWhereAsync(Expression<Func<T, bool>> predicate)
             => await _context.Set<T>().Where(predicate).ToListAsync();
+
+        async Task IRepository<T>.SaveChangesAsync()
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new Exception("Concurrency conflict occurred", ex);
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new Exception("Database update failed", ex);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error saving changes", ex);
+            }
+        }
     }
 }

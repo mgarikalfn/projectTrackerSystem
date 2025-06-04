@@ -16,13 +16,13 @@ namespace projectTracker.Infrastructure.Mapping
         public MappingProfile()
         {
             CreateMap<CreateRoleCommand, UserRole>();
-            CreateMap<UpdateRoleDto, UpdateRoleCommand>();
+            CreateMap<RoleUpdateDto, UpdateRoleCommand>();
             CreateMap<UpdateRoleCommand, UserRole>();
 
 
-            CreateMap<Privilege, PrivilegeDto>();
-            CreateMap<CreatePrivilegeDto, Privilege>();
-            CreateMap<UpdatePrivilegeDto, Privilege>();
+            CreateMap<Permission, PermissionDto>();
+            CreateMap<CreatePermissionDto, Permission>();
+            CreateMap<UpdatePermissionDto, Permission>();
         }
     }
 }

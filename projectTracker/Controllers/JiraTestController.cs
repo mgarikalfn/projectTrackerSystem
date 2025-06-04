@@ -43,7 +43,7 @@ namespace projectTracker.Api.Controllers
         [HttpGet("GetProjects")]
         public async Task<IActionResult> GetProjects()
         {
-        // await  _syncManager.SyncAsync(CancellationToken.None);
+         await  _syncManager.SyncAsync(CancellationToken.None);
             var projects = await _context.Projects.ToListAsync(CancellationToken.None);
             return Ok(projects);
         }

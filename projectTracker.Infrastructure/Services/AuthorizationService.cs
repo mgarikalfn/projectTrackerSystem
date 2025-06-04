@@ -69,18 +69,18 @@ namespace ProjectTracker.Infrastructure.Services
 
         public async Task<bool> IsAuthorizedAsync(string userId, string action) // Fixed return type
         {
-            var roles = await _context.UserRoleMappings
+            var roles = await _context.UserRoles
                 .Where(a => a.UserId == userId)
                 .Select(r => r.RoleId)
                 .ToListAsync(); // Added Async
 
             if (!roles.Any()) return false;
 
-            var hasPermission = await _context.RolePrivileges
-                .Include(rp => rp.Privilage)
+            var hasPermission = await _context.RolePermissions
+                .Include(rp => rp.Permission)
                 .Where(rp => roles.Contains(rp.RoleId))
                 .AnyAsync(rp =>
-                    string.Equals(action, rp.Privilage.Action, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(action, rp.Permission.Action, StringComparison.OrdinalIgnoreCase));
 
             return hasPermission;
         }

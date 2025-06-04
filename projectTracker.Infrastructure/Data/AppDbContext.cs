@@ -5,7 +5,6 @@ using projectTracker.Domain.Aggregates;
 using projectTracker.Domain.Entities;
 using projectTracker.Domain.Enums;
 
-
 namespace ProjectTracker.Infrastructure.Data
 {
     public class AppDbContext : IdentityDbContext<AppUser, UserRole, string,
@@ -14,27 +13,36 @@ namespace ProjectTracker.Infrastructure.Data
                                               IdentityRoleClaim<string>,
                                               IdentityUserToken<string>>
     {
-
+        // Essential DbSets
         public DbSet<Project> Projects { get; set; }
         public DbSet<ProjectTask> Tasks { get; set; }
         public DbSet<SyncHistory> SyncHistory { get; set; }
-        public DbSet<AppUser> Users { get; set; }
-        public DbSet<UserRole> UserRoles { get; set; }
-        public DbSet<Privilege> Privileges { get; set; }
-        public DbSet<RolePrivilege> RolePrivileges { get; set; }
-        public DbSet<UserRoleMapping> UserRoleMappings { get; set; }
+        public DbSet<MenuItem> MenuItems { get; set; }
+        public DbSet<Permission> Permissions { get; set; }
+        public DbSet<RolePermission> RolePermissions { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // Rename Identity tables
+            modelBuilder.Entity<AppUser>().ToTable("Users");
+            modelBuilder.Entity<UserRole>().ToTable("UserRoles");
+            modelBuilder.Entity<UserRoleMapping>().ToTable("UserRoleMappings");
+            modelBuilder.Entity<IdentityUserClaim<string>>().ToTable("UserClaims");
+            modelBuilder.Entity<IdentityUserLogin<string>>().ToTable("UserLogins");
+            modelBuilder.Entity<IdentityRoleClaim<string>>().ToTable("RoleClaims");
+            modelBuilder.Entity<IdentityUserToken<string>>().ToTable("UserTokens");
+
+
             // Project Aggregate Configuration
             modelBuilder.Entity<Project>(entity =>
             {
                 entity.HasKey(p => p.Id);
 
-                // Value Objects (Owned Entities)
+                // Health Value Object Configuration
                 entity.OwnsOne(p => p.Health, h =>
                 {
                     h.Property(h => h.Level)
@@ -53,9 +61,9 @@ namespace ProjectTracker.Infrastructure.Data
                         .HasColumnName("HealthConfidence");
                 });
 
+                // Progress Value Object Configuration
                 entity.OwnsOne(p => p.Progress, p =>
                 {
-                    // Required properties
                     p.Property(p => p.TotalTasks)
                         .HasColumnName("TotalTasks")
                         .IsRequired();
@@ -72,7 +80,6 @@ namespace ProjectTracker.Infrastructure.Data
                         .HasColumnName("StoryPointsCompleted")
                         .IsRequired();
 
-                    // New properties from your ProgressMetrics
                     p.Property(p => p.ActiveBlockers)
                         .HasColumnName("ActiveBlockers")
                         .IsRequired();
@@ -80,14 +87,12 @@ namespace ProjectTracker.Infrastructure.Data
                     p.Property(p => p.RecentUpdates)
                         .HasColumnName("RecentUpdates")
                         .IsRequired();
-
-
                 });
 
-                // Core properties
+                // Core Project properties
                 entity.Property(p => p.Key)
                     .IsRequired()
-                    .HasMaxLength(50);  // Consider adding length limit
+                    .HasMaxLength(50);
 
                 entity.Property(p => p.Name)
                     .IsRequired()
@@ -103,114 +108,27 @@ namespace ProjectTracker.Infrastructure.Data
                 entity.HasIndex(p => p.Key)
                     .IsUnique();
             });
-            // ProjectTask Entity Configuration
-            modelBuilder.Entity<ProjectTask>(entity =>
+
+
+            // Configure RolePermission with length limits
+            modelBuilder.Entity<Permission>(entity =>
             {
-                entity.HasKey(t => t.Id);
-
-                // Status Conversion
-                entity.Property(t => t.Status)
-                    .HasConversion(
-                        v => v.ToString(),
-                        v => (projectTracker.Domain.Enums.TaskStatus)Enum.Parse(typeof(projectTracker.Domain.Enums.TaskStatus), v))
-                    .IsRequired();
-
-                // Relationships
-                entity.HasOne(t => t.Project)
-                    .WithMany(p => p.Tasks)
-                    .HasForeignKey(t => t.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                // Value Constraints
-                entity.Property(t => t.Key).IsRequired();
-                entity.Property(t => t.Summary).IsRequired();
-                entity.Property(t => t.Updated).IsRequired();
-
-                // Indexes
-                entity.HasIndex(t => t.Key).IsUnique();
-                entity.HasIndex(t => t.ProjectId);
-                entity.HasIndex(t => t.Status);
-                entity.HasIndex(t => t.AssigneeId);
-                entity.HasIndex(t => t.Updated);
+                entity.Property(p => p.Id)
+                    .HasMaxLength(450); // Max length for SQL Server index compatibility
             });
 
-            // Additional Configurations
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Tasks)
-                .WithOne(t => t.Project)
-                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<RolePermission>()
+                .HasKey(rp => new { rp.RoleId, rp.PermissionId });
 
+            modelBuilder.Entity<RolePermission>()
+                .HasOne(rp => rp.Role)
+                .WithMany(r => r.RolePermissions)
+                .HasForeignKey(rp => rp.RoleId);
 
-            modelBuilder.Entity<SyncHistory>(entity =>
-            {
-                entity.HasKey(s => s.Id);
-                entity.HasIndex(s => s.SyncTime);
-                entity.HasIndex(s => s.ProjectId);
-            });
-
-
-            modelBuilder.Entity<SyncHistory>(entity =>
-            {
-                entity.HasKey(s => s.Id);
-
-                // Indexes for query performance
-                entity.HasIndex(s => s.SyncTime);
-                entity.HasIndex(s => s.ProjectId);
-                entity.HasIndex(s => s.Status);
-                entity.HasIndex(s => new { s.ProjectId, s.SyncTime });
-
-                // Conversions
-                entity.Property(s => s.Type)
-                    .HasConversion<string>();
-
-                entity.Property(s => s.Status)
-                    .HasConversion<string>();
-
-                // Relationships
-                entity.HasOne(s => s.Project)
-                    .WithMany()
-                    .HasForeignKey(s => s.ProjectId);
-            });
-
-
-
-            // configuring identity classes
-
-            modelBuilder.Entity<UserRole>(role =>
-            {
-                role.HasKey(s => s.Id);
-                role.Property(r => r.RoleName).IsRequired().HasMaxLength(256);
-                role.Property(r => r.Description).HasMaxLength(500);
-            });
-
-
-            modelBuilder.Entity<RolePrivilege>(rp =>
-            {
-                rp.HasKey(rp => new { rp.RoleId, rp.PrivilageId });
-                rp.HasOne(rp => rp.Role)
-                    .WithMany(r => r.RolePrivilage)
-                    .HasForeignKey(rp => rp.RoleId);
-
-                rp.HasOne(rp => rp.Privilage)
-                    .WithMany(p => p.RolePrivilage)
-                    .HasForeignKey(rp => rp.PrivilageId);
-            });
-
-            modelBuilder.Entity<UserRoleMapping>(b =>
-            {
-                b.ToTable("UserRoleMappings"); // optional rename
-                b.HasKey(x => new { x.UserId, x.RoleId });
-
-                // Relationships (optional if handled by Identity automatically)
-                b.HasOne<AppUser>()
-                    .WithMany()
-                    .HasForeignKey(urm => urm.UserId);
-
-                b.HasOne<UserRole>()
-                    .WithMany()
-                    .HasForeignKey(urm => urm.RoleId);
-            });
-
+            modelBuilder.Entity<RolePermission>()
+                .HasOne(rp => rp.Permission)
+                .WithMany(p => p.RolePermissions)
+                .HasForeignKey(rp => rp.PermissionId);
         }
     }
 }

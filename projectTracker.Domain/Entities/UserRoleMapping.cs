@@ -11,5 +11,6 @@ namespace projectTracker.Domain.Entities
     {
         public DateTime AssignedAt { get; set;} = DateTime.UtcNow;
         public string AssignedBy { get; set; } = String.Empty;
+        public string UpdatedBy { get; set; } = string.Empty;
     }
 }

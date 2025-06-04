@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using projectTracker.Application.Interfaces;
+﻿using projectTracker.Application.Interfaces;
 using projectTracker.Domain.Entities;
 using ProjectTracker.Infrastructure.Data;
-using ProjectTracker.Infrastructure.Services;
 
 namespace projectTracker.Infrastructure.Services
 {
@@ -16,11 +10,11 @@ namespace projectTracker.Infrastructure.Services
         private bool _disposed;
 
         // Repositories (lazy-loaded)
-        private IRepository<Privilege>? _userRepository;
+        private IRepository<AppUser>? _userRepository;
         private IRepository<UserRole>? _roleRepository;
         private IRepository<UserRoleMapping>? _userRoleMappingRepository;
-        private IRepository<Privilege>? _privilegeRepository;
-        private IRepository<RolePrivilege>? _rolePrivilegeRepository;
+        private IRepository<Permission>? _permissionRepository;
+        private IRepository<RolePermission>? _rolePermissionRepository;
 
         public UnitOfWork(AppDbContext context)
         {
@@ -28,8 +22,8 @@ namespace projectTracker.Infrastructure.Services
         }
 
         // Repository Properties
-        public IRepository<Privilege> UserRepository =>
-            _userRepository ??= new Repository<Privilege>(_context) as IRepository<Privilege>;
+        public IRepository<AppUser> UserRepository =>
+            _userRepository ??= new Repository<AppUser>(_context) as IRepository<AppUser>;
 
         public IRepository<UserRole> RoleRepository =>
             _roleRepository ??= new Repository<UserRole>(_context) as IRepository<UserRole>;
@@ -37,11 +31,11 @@ namespace projectTracker.Infrastructure.Services
         public IRepository<UserRoleMapping> UserRoleMappingRepository =>
             _userRoleMappingRepository ??= new Repository<UserRoleMapping>(_context) as IRepository<UserRoleMapping>;
 
-        public IRepository<Privilege> PrivilegeRepository =>
-           _privilegeRepository ??= new Repository<Privilege>(_context) as IRepository<Privilege>;
+        public IRepository<Permission> PermissionRepository =>
+           _permissionRepository ??= new Repository<Permission>(_context) as IRepository<Permission>;
 
-        public IRepository<RolePrivilege> RolePrivilegeRepository =>
-           _rolePrivilegeRepository ??= new Repository<RolePrivilege>(_context) as IRepository<RolePrivilege>;
+        public IRepository<RolePermission> RolePermissionRepository =>
+           _rolePermissionRepository ??= new Repository<RolePermission>(_context) as IRepository<RolePermission>;
 
         // Transaction Methods
         public async Task BeginTransactionAsync()
