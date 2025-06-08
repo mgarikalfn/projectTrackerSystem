@@ -10,7 +10,7 @@ using projectTracker.Domain.Entities;
 
 namespace projectTracker.Application.Features.Role.Command
 {
-    public class UpdateRoleCommand : IRequest<Result<string>>
+    public class UpdateRoleCommand : IRequest<Result>
     {
         public string Id { get; set; }
         public string Name { get; set; }       // Optional
@@ -18,7 +18,7 @@ namespace projectTracker.Application.Features.Role.Command
         public List<string> PermissionIdsToAdd { get; set; } // Optional
     }
 
-    public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, Result<string>>
+    public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, Result>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -27,7 +27,7 @@ namespace projectTracker.Application.Features.Role.Command
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Result<string>> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
         {
             await _unitOfWork.BeginTransactionAsync();
 
@@ -37,7 +37,7 @@ namespace projectTracker.Application.Features.Role.Command
                 var role = await _unitOfWork.RoleRepository.GetByIdAsync(request.Id);
                 if (role == null)
                 {
-                    return Result.Fail<string>("Role not found");
+                    return Result.Fail("Role not found");
                 }
 
                 // Track if any role properties changed
@@ -90,12 +90,12 @@ namespace projectTracker.Application.Features.Role.Command
                 }
 
                 await _unitOfWork.CommitAsync();
-                return Result.Ok(role.Id);
+                return Result.Ok();
             }
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackAsync();
-                return Result.Fail<string>($"Update failed: {ex.Message}");
+                return Result.Fail($"Update failed: {ex.Message}");
             }
         }
     }

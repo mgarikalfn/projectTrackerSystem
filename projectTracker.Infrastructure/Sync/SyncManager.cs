@@ -47,6 +47,9 @@ namespace projectTracker.Infrastructure.Sync
                 // Then sync projects
                 await SyncProjectsAsync(ct);
 
+                //sync Tasks
+                await SyncTasksAsync(ct);
+
                 _logger.LogInformation("Sync completed successfully");
             }
             catch (Exception ex)
@@ -187,6 +190,81 @@ namespace projectTracker.Infrastructure.Sync
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to complete project sync");
+                throw;
+            }
+        }
+
+
+
+
+        private async Task SyncTasksAsync(CancellationToken ct)
+        {
+            _logger.LogInformation("Starting task sync...");
+
+            try
+            {
+                // Get all projects from DB to sync tasks for each
+                var projects = await _dbContext.Projects.ToListAsync(ct);
+
+                foreach (var project in projects)
+                {
+                    try
+                    {
+                        _logger.LogDebug("Syncing tasks for project {ProjectKey}", project.Key);
+
+                        // Fetch tasks from Jira
+                        var jiraTasks = await _adapter.GetProjectTasksAsync(project.Key, ct);
+
+                        foreach (var jiraTask in jiraTasks)
+                        {
+                            try
+                            {
+                                // Find existing task or create new one
+                                var task = await _dbContext.Tasks
+                                    .FirstOrDefaultAsync(t => t.Key == jiraTask.Key, ct);
+
+                                if (task == null)
+                                {
+                                    // Create new task
+                                    task = ProjectTask.Create(
+                                        taskKey: jiraTask.Key,
+                                        title: jiraTask.Title,
+                                        projectId: Guid.Parse(project.Id));
+
+                                    _dbContext.Tasks.Add(task);
+                                    _logger.LogDebug("Added new task {TaskKey}", jiraTask.Key);
+                                }
+
+                                // Update task details from Jira
+                                task.UpdateFromJira(
+                                    title: jiraTask.Title,
+                                    description: null, // Add if available
+                                    status: jiraTask.Status,
+                                    assigneeId: jiraTask.AssigneeId, // You might need to map this
+                                    assigneeName: jiraTask.AssigneeName,
+                                    dueDate: null, // Add if available
+                                    storyPoints: (decimal?)jiraTask.StoryPoints,
+                                    timeEstimate: null, // Add if available
+                                    updatedDate: jiraTask.UpdatedDate);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error processing task {TaskKey}", jiraTask.Key);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error syncing tasks for project {ProjectKey}", project.Key);
+                    }
+                }
+
+                var changes = await _dbContext.SaveChangesAsync(ct);
+                _logger.LogInformation("Task sync completed. {ChangesCount} changes saved", changes);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to complete task sync");
                 throw;
             }
         }

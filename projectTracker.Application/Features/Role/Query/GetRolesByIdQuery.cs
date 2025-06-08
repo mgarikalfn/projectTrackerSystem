@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentResults;
 using MediatR;
 using projectTracker.Application.Dto.Role;
 using projectTracker.Application.Interfaces;
@@ -10,12 +11,12 @@ using projectTracker.Domain.Entities;
 
 namespace projectTracker.Application.Features.Role.Query
 {
-    public class GetRolesByIdQuery : IRequest<RoleDto>
+    public class GetRolesByIdQuery : IRequest<Result<RoleDto>>
     {
         public string Id { get; set; }
     }
 
-    public class GetRolesByIdQueryHandler : IRequestHandler<GetRolesByIdQuery, RoleDto>
+    public class GetRolesByIdQueryHandler : IRequestHandler<GetRolesByIdQuery, Result<RoleDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -24,7 +25,7 @@ namespace projectTracker.Application.Features.Role.Query
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<RoleDto> Handle(GetRolesByIdQuery request, CancellationToken cancellationToken)
+        public async Task<Result<RoleDto>> Handle(GetRolesByIdQuery request, CancellationToken cancellationToken)
         {
             // Get the role
             var role = await _unitOfWork.RoleRepository.GetByIdAsync(request.Id);
@@ -46,12 +47,15 @@ namespace projectTracker.Application.Features.Role.Query
                 .ToList();
 
             // Create the response DTO
-            return new RoleDto(
+           var  roleDto= new RoleDto(
                 CreatedAt: role.CreatedAt,
                 Name: role.Name,
                 Description: role.Description,
-                Permissions: permissions
+                Permissions: permissions,
+                RoleId: role.Id
             );
+
+            return Result.Ok(roleDto);
         }
     }
 }

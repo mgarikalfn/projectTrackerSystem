@@ -7,7 +7,8 @@ namespace projectTracker.Application.Dto.Role
         DateTime CreatedAt,
         string Name,
         string Description,
-        List<string> Permissions
+        List<string> Permissions,
+        string RoleId
     );
 
     public record RolePermissionDto(

@@ -13,10 +13,12 @@ namespace projectTracker.Infrastructure.Services
     public class Repository<T> : IRepository<T> where T : class
     {
         private readonly AppDbContext _context;
+        private readonly DbSet<T> _dbSet;
 
         public Repository(AppDbContext context)
         {
             _context = context;
+            _dbSet = _context.Set<T>();
         }
 
         public async Task<T> GetByIdAsync(string id)
@@ -24,6 +26,20 @@ namespace projectTracker.Infrastructure.Services
 
         public async Task<IReadOnlyList<T>> GetAllAsync()
             => await _context.Set<T>().ToListAsync();
+
+
+        public async Task<IReadOnlyList<T>> GetAllAsyncWithInclude(
+     params Expression<Func<T, object>>[] includes)
+        {
+            IQueryable<T> query = _dbSet;
+
+            foreach (var include in includes)
+            {
+                query = query.Include(include);
+            }
+
+            return await query.ToListAsync();
+        }
 
         public async Task<T> AddAsync(T entity)
         {

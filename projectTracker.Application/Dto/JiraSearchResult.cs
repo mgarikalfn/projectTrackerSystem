@@ -23,7 +23,19 @@ namespace projectTracker.Application.Dto
         public string Summary { get; set; } = string.Empty;
         public JiraStatusDto Status { get; set; } = new();
         public JiraAssigneeDto? Assignee { get; set; }
-        public DateTime Updated { get; set; }
+        public string Updated { get; set; } = string.Empty;
+        public string Created { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+
+        [JsonConverter(typeof(JiraDateTimeConverter))]
+        public DateTime UpdatedDate { get; set; }
+
+        [JsonConverter(typeof(JiraDateTimeConverter))]
+        public DateTime CreatedDate { get; set; }
+
+        [JsonConverter(typeof(JiraDateTimeConverter))]
+        public DateTime? DueDate { get; set; } // Nullable
+
         [JsonPropertyName("customfield_10035")] // Add this attribute
         public double? StoryPoints { get; set; }
     }

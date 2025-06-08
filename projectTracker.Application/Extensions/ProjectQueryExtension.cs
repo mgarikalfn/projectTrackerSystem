@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using projectTracker.Application.Dto.Project;
 using projectTracker.Domain.Aggregates;
+using projectTracker.Domain.Enums;
 
 namespace projectTracker.Infrastructure.Extensions
 {
@@ -26,7 +27,11 @@ namespace projectTracker.Infrastructure.Extensions
                 query = query.Where(p => p.Health.Level == filter.HealthLevel.Value);
 
             if (filter.IsCritical.HasValue)
-                query = query.Where(p => p.Critical == filter.IsCritical.Value);
+            {
+                query = filter.IsCritical.Value
+                    ? query.Where(p => p.Health.Level == HealthLevel.Critical)  // Critical only
+                    : query.Where(p => p.Health.Level != HealthLevel.Critical); // Non-critical
+            }
 
             // Sorting
             query = filter.SortBy?.ToLower() switch

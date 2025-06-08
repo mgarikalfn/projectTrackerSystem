@@ -7,16 +7,18 @@ using MediatR;
 using projectTracker.Domain.Entities;
 using FluentResults;
 using projectTracker.Application.Interfaces;
+using projectTracker.Application.Dto.Role;
 
 namespace projectTracker.Application.Features.Role.Command
 {
-    public class CreateRoleCommand : IRequest<Result<string>>
+    public class CreateRoleCommand : IRequest<Result<RoleDto>>
     {
         public string Name { get; set; }
         public string Description { get; set; }
-        public List<string> PermissionIds { get; set; } // List of existing permission IDs to assign
+        public List<string> PermissionIds { get; set; }
     }
-    public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, Result<string>>
+
+    public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, Result<RoleDto>>
     {
         private readonly IUnitOfWork _unitOfWork;
 
@@ -25,7 +27,7 @@ namespace projectTracker.Application.Features.Role.Command
             _unitOfWork = unitOfWork;
         }
 
-        public async Task<Result<string>> Handle(CreateRoleCommand request, CancellationToken cancellationToken)
+        public async Task<Result<RoleDto>> Handle(CreateRoleCommand request, CancellationToken cancellationToken)
         {
             try
             {
@@ -34,7 +36,7 @@ namespace projectTracker.Application.Features.Role.Command
                 // Validate request
                 if (string.IsNullOrWhiteSpace(request.Name))
                 {
-                    return Result.Fail<string>("Role name is required");
+                    return Result.Fail<RoleDto>("Role name is required");
                 }
 
                 // Check if role already exists
@@ -44,7 +46,7 @@ namespace projectTracker.Application.Features.Role.Command
 
                 if (existingRole != null)
                 {
-                    return Result.Fail<string>("Role with this name already exists");
+                    return Result.Fail<RoleDto>("Role with this name already exists");
                 }
 
                 // Create the role
@@ -59,41 +61,55 @@ namespace projectTracker.Application.Features.Role.Command
                 await _unitOfWork.RoleRepository.AddAsync(role);
 
                 // Assign permissions if provided
+                List<string> permissionNames = new List<string>();
                 if (request.PermissionIds != null && request.PermissionIds.Any())
                 {
                     // Get all valid permissions in one query
                     var allPermissions = await _unitOfWork.PermissionRepository.GetAllAsync();
-                    var validPermissionIds = allPermissions.Select(p => p.Id).ToList();
+                    var validPermissions = allPermissions.ToDictionary(p => p.Id, p => p.PermissionName);
 
                     foreach (var permissionId in request.PermissionIds)
                     {
-                        if (!validPermissionIds.Contains(permissionId))
+                        if (!validPermissions.ContainsKey(permissionId))
                         {
                             await _unitOfWork.RollbackAsync();
-                            return Result.Fail<string>($"Permission with ID {permissionId} not found");
+                            return Result.Fail<RoleDto>($"Permission with ID {permissionId} not found");
                         }
 
                         // Create role-permission mapping
                         var rolePermission = new RolePermission
                         {
                             RoleId = role.Id,
-                            PermissionId = permissionId,
-                            // Set default permissions (adjust based on your requirements)
-                            
+                            PermissionId = permissionId
                         };
 
                         await _unitOfWork.RolePermissionRepository.AddAsync(rolePermission);
+
+                        // Add permission name to our list
+                        permissionNames.Add(validPermissions[permissionId]);
                     }
                 }
 
                 await _unitOfWork.CommitAsync();
-                return Result.Ok(role.Id);
+
+                // Create the DTO with all needed information
+                var roleDto = new RoleDto(
+                    role.CreatedAt,
+                    role.Name,
+                    role.Description,
+                    permissionNames,
+                    role.Id
+                );
+
+                return Result.Ok(roleDto);
             }
             catch (Exception ex)
             {
                 await _unitOfWork.RollbackAsync();
-                return Result.Fail<string>($"Failed to create role: {ex.Message}");
+                return Result.Fail<RoleDto>($"Failed to create role: {ex.Message}");
             }
         }
     }
+
+   
 }

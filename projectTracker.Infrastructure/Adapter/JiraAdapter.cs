@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -15,6 +16,7 @@ namespace projectTracker.Infrastructure.Adapter
 {
     public class JiraAdapter : IProjectManegementAdapter
     {
+        private const double V = 0.0;
         private readonly HttpClient _httpClient;
         public JiraAdapter(HttpClient httpClient, IConfiguration config )
         {
@@ -138,31 +140,36 @@ namespace projectTracker.Infrastructure.Adapter
             return users;
         }
 
-        // Updated Jira User Response DTO
-        public class JiraUserResponse
+        public async Task<List<TaskDto>> GetProjectTasksAsync(string projectKey, CancellationToken ct)
         {
-            [JsonPropertyName("accountId")]
-            public string AccountId { get; set; }
+            var response = await _httpClient.GetAsync(
+                $"search?jql=project={projectKey}&fields=key,summary,description,status,assignee,created,updated,duedate,customfield_10035&maxResults=1000",
+                ct);
 
-            [JsonPropertyName("emailAddress")]
-            public string EmailAddress { get; set; }
+            response.EnsureSuccessStatusCode();
 
-            [JsonPropertyName("displayName")]
-            public string DisplayName { get; set; }
+            var options = new JsonSerializerOptions
+            {
+                Converters = { new JiraDateTimeConverter() },
+                PropertyNameCaseInsensitive = true
+            };
 
-            [JsonPropertyName("avatarUrls")]
-            public Dictionary<string, string> AvatarUrls { get; set; }
+            var jiraData = await response.Content.ReadFromJsonAsync<JiraSearchResult>(options, ct);
 
-            [JsonPropertyName("active")]
-            public bool Active { get; set; }
-
-            // Add other properties you need
-            [JsonPropertyName("timeZone")]
-            public string TimeZone { get; set; }
-
-            [JsonPropertyName("locale")]
-            public string Locale { get; set; }
+            return jiraData.Issues.Select(issue => new TaskDto
+            {
+                Key = issue.Key,
+                Title = issue.Fields.Summary,
+                Description = issue.Fields.Description,
+                Status = issue.Fields.Status.Name,
+                AssigneeId = issue.Fields.Assignee?.AccountId,
+                AssigneeName = issue.Fields.Assignee?.DisplayName ?? "Unassigned",
+                CreatedDate = issue.Fields.CreatedDate,
+                UpdatedDate = issue.Fields.UpdatedDate,
+                DueDate = issue.Fields.DueDate, // Add this to your JiraIssueFieldsDto
+                StoryPoints = (int)(issue.Fields.StoryPoints ?? 0)
+            }).ToList();
         }
-    
     }
+    
 }

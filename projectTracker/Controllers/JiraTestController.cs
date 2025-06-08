@@ -55,5 +55,12 @@ namespace projectTracker.Api.Controllers
             var users = await _jiraAdapter.GetAppUsersAsync(CancellationToken.None);
             return Ok(users);
         }
+        [AllowAnonymous]
+        [HttpGet("{key}")]
+        public async Task<IActionResult> GetProjectTasks(string key)
+        {
+            var tasks = await _jiraAdapter.GetProjectTasksAsync(key, CancellationToken.None);
+            return Ok(tasks);
+        }
     }
 }

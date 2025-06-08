@@ -8,11 +8,16 @@ namespace projectTracker.Application.Dto
 {
     public class TaskDto
     {
-        public string Key { get; set; } = string.Empty;
-        public string Summary { get; set; } = string.Empty;
-        public string Status { get; set; } = string.Empty;
-        public string? AssigneeId { get; set; }
-        public DateTime Updated { get; set; }
+        public string Key { get; set; }
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string Status { get; set; }
+        public string AssigneeId { get; set; }
+        public string AssigneeName { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime UpdatedDate { get; set; }
+        public DateTime? DueDate { get; set; }
+        public int StoryPoints { get; set; }
     }
 
 }

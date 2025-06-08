@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using projectTracker.Application.Common;
 using projectTracker.Application.Dto.Privilage;
 using projectTracker.Application.Features.Privilege.Command;
 using projectTracker.Application.Features.Privilege.Query;
@@ -25,21 +26,21 @@ namespace projectTracker.Api.Controllers
         public async Task<IActionResult> GetById(string id)
         {
             var result = await _mediator.Send(new GetPermissionByIdQuery(id));
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
             var result = await _mediator.Send(new GetAllPermissionsQuery());
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreatePermissionDto dto)
         {
             var result = await _mediator.Send(new CreatePermissionCommand(dto));
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpPut ("{id}")]
@@ -53,14 +54,18 @@ namespace projectTracker.Api.Controllers
                 Description = dto.Description,
             };
             var result = await _mediator.Send(command);
-            return Ok(result);
+            return result.IsSuccess
+           ? Ok(new { success = true })
+           : BadRequest(new { success = false, errors = result.Errors.Select(e => e.Message) });
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
         {
             var result = await _mediator.Send(new DeletePermissionCommand(id));
-            return Ok(result);
+            return result.IsSuccess
+           ? Ok(new { success = true })
+           : BadRequest(new { success = false, errors = result.Errors.Select(e => e.Message) });
         }
 
     }

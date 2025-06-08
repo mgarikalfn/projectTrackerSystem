@@ -11,6 +11,8 @@ namespace projectTracker.Application.Interfaces
     {
         Task<T> GetByIdAsync(string id);
         Task<IReadOnlyList<T>> GetAllAsync();
+        Task<IReadOnlyList<T>> GetAllAsyncWithInclude(
+       params Expression<Func<T, object>>[] includes);
         Task<T> AddAsync(T entity);
         Task<bool> UpdateAsync(T entity);
         Task<bool> DeleteAsync(T entity);

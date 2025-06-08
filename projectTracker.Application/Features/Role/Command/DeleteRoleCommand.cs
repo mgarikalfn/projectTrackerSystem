@@ -10,30 +10,30 @@ using projectTracker.Domain.Entities;
 
 namespace projectTracker.Application.Features.Role.Command
 {
-    public class DeleteRoleCommand :IRequest<Result<String>>
+    public class DeleteRoleCommand :IRequest<Result>
     {
         public string Id { get; set; }
     }
 
-    public class DeleteRoleCommandHandler : IRequestHandler<DeleteRoleCommand, Result<string>>
+    public class DeleteRoleCommandHandler : IRequestHandler<DeleteRoleCommand, Result>
     {
         private readonly IRepository<UserRole> _roleRepository;
 
-        public async  Task<Result<string>> Handle(DeleteRoleCommand request, CancellationToken cancellationToken)
+        public async  Task<Result> Handle(DeleteRoleCommand request, CancellationToken cancellationToken)
         {
             var role = await _roleRepository.GetByIdAsync(request.Id);
             if (role == null)
             {
-                return  Result.Fail<string>("role not found");
+                return  Result.Fail("role not found");
             }
             try
             {
                 var result = await _roleRepository.DeleteAsync(role);
-                return result ? Result.Ok(role.Id) : Result.Fail<string>("couldn't delete role");
+                return result ? Result.Ok() : Result.Fail("couldn't delete role");
             }
             catch (Exception ex)
             {
-                return Result.Fail<string>(ex.Message);
+                return Result.Fail(ex.Message);
             }
 
         }

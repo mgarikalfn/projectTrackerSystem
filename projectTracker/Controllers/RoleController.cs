@@ -2,6 +2,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using projectTracker.Application.Common;
 using projectTracker.Application.Dto.Role;
 using projectTracker.Application.Features.Role.Command;
 using projectTracker.Application.Features.Role.Query;
@@ -26,51 +27,40 @@ namespace projectTracker.Api.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<RoleDto>>> GetRoles()
+        public async Task<IActionResult> GetRoles()
         {
             var result = await _mediator.Send(new GetAllRolesQuery());
-            if (result == null || !result.Any())
-            {
-                return NotFound("No roles found.");
-            }
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<RoleDto>> GetRoleById(string id)
+        public async Task<IActionResult> GetRoleById(string id)
         {
             var result = await _mediator.Send(new GetRolesByIdQuery { Id = id });
-            if (result == null)
-            {
-                return NotFound($"Role with ID {id} not found.");
-            }
-            return Ok(result);
+           return result.ToActionResult();
         }
 
 
         [HttpPost]
-        public async Task<ActionResult> CreateRole([FromBody] CreateRoleCommand createRole)
+        public async Task<IActionResult> CreateRole([FromBody] CreateRoleCommand createRole)
         {
             var result = await _mediator.Send(createRole);
-            if (result == null)
-            {
-                return NotFound("can't create role");
-            }
-
-            return Ok(result);
+            return result.ToActionResult();
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> UpdateRole(string id , [FromBody] RoleUpdateDto roleDto)
+        public async Task<IActionResult> UpdateRole(string id , [FromBody] RoleUpdateDto roleDto)
         {
             var command = _mapper.Map<UpdateRoleCommand>(roleDto);
             command.Id = id;
             var result = await _mediator.Send(command);
-            return Ok(result);
+            return result.IsSuccess
+            ? Ok(new { success = true })
+            : BadRequest(new { success = false, errors = result.Errors.Select(e => e.Message) });
         }
 
         [HttpDelete("{id}")]
-        public async Task<ActionResult> DeleteRole(string id)
+        public async Task<IActionResult> DeleteRole(string id)
         {
             var result = _mediator.Send(new DeleteRoleCommand { Id = id });
             return Ok(result);
