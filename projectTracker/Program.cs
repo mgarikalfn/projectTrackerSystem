@@ -67,9 +67,10 @@ builder.Services.AddCors(options =>
                         .AllowAnyMethod());
 });
 
-//app.UseCors("AllowFrontend");
+
 
 var app = builder.Build();
+app.UseCors("AllowFrontend");            
 
 // ===== MIDDLEWARE PIPELINE =====
 // Critical order: Authentication -> Authorization -> Controllers

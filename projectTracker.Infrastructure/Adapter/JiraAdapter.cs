@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using projectTracker.Application.Dto;
@@ -94,6 +95,74 @@ namespace projectTracker.Infrastructure.Adapter
             throw new NotImplementedException();
         }
 
-        
+        async Task<List<UsersDto>> IProjectManegementAdapter.GetAppUsersAsync(CancellationToken ct)
+        {
+            
+            var users = new List<UsersDto>();
+            var startAt = 0;
+            const int maxResults = 50; // Jira's default page size
+            const int maxRequests = 20; // Safety limit to prevent infinite loops
+            var requestCount = 0;
+
+            while (requestCount < maxRequests)
+            {
+                requestCount++;
+
+                var response = await _httpClient.GetAsync(
+                    $"users/search?startAt={startAt}&maxResults={maxResults}", ct);
+
+                response.EnsureSuccessStatusCode();
+
+                var page = await response.Content.ReadFromJsonAsync<List<JiraUserResponse>>(cancellationToken: ct);
+                if (page == null || page.Count == 0) break;
+
+                users.AddRange(page.Select(u => new UsersDto
+                {
+                    AccountId = u.AccountId,
+                    Email = u.EmailAddress,
+                    DisplayName = u.DisplayName,
+                    AvatarUrl = u.AvatarUrls?.GetValueOrDefault("48x48"),
+                    Active = u.Active,
+                    Source = "Jira"
+                }));
+
+                startAt += maxResults;
+
+                // Break if we've gotten all users
+                if (page.Count < maxResults) break;
+
+                // Respect rate limits
+                await Task.Delay(200, ct);
+            }
+
+            return users;
+        }
+
+        // Updated Jira User Response DTO
+        public class JiraUserResponse
+        {
+            [JsonPropertyName("accountId")]
+            public string AccountId { get; set; }
+
+            [JsonPropertyName("emailAddress")]
+            public string EmailAddress { get; set; }
+
+            [JsonPropertyName("displayName")]
+            public string DisplayName { get; set; }
+
+            [JsonPropertyName("avatarUrls")]
+            public Dictionary<string, string> AvatarUrls { get; set; }
+
+            [JsonPropertyName("active")]
+            public bool Active { get; set; }
+
+            // Add other properties you need
+            [JsonPropertyName("timeZone")]
+            public string TimeZone { get; set; }
+
+            [JsonPropertyName("locale")]
+            public string Locale { get; set; }
+        }
+    
     }
 }

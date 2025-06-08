@@ -3,13 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
 
-namespace projectTracker.Domain.Entities
+namespace projectTracker.Application.Dto.User
 {
-    public class AppUser : IdentityUser
+    public class UpdateUserDto
     {
-        //Basic properties
         public string FirstName { get; set; } = String.Empty;
         public string LastName { get; set; } = String.Empty;
         public bool IsActive { get; set; } = true;
@@ -20,9 +18,7 @@ namespace projectTracker.Domain.Entities
         public string DisplayName { get; set; } = String.Empty;
         public string AvatarUrl { get; set; } = String.Empty;
         public string TimeZone { get; set; } = String.Empty;
-        public decimal CurrentWorkload { get; set; } // Calculated from assigned issues
-        public string Location { get; set; } = String.Empty; // If available
-
-
+        public decimal CurrentWorkload { get; set; } = 0;
+        public string Location { get; set; } = String.Empty;
     }
 }

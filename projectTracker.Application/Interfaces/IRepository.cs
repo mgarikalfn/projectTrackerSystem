@@ -21,5 +21,7 @@ namespace projectTracker.Application.Interfaces
             CancellationToken cancellationToken = default);       // Added cancellation token
         Task<IReadOnlyList<T>> GetWhereAsync(Expression<Func<T, bool>> predicate);
         Task SaveChangesAsync();
+        IQueryable<T> GetQueryable();
+
     }
 }

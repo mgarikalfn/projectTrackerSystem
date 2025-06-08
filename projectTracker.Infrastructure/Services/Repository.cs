@@ -79,5 +79,11 @@ namespace projectTracker.Infrastructure.Services
                 throw new Exception("Error saving changes", ex);
             }
         }
+
+        public IQueryable<T> GetQueryable()
+        {
+            return _context.Set<T>().AsQueryable();
+        }
+
     }
 }

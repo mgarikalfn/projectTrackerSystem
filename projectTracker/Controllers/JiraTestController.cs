@@ -9,6 +9,7 @@ namespace projectTracker.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [AllowAnonymous]
     public class JiraTestController : ControllerBase
     {
         private readonly IProjectManegementAdapter _jiraAdapter;
@@ -46,6 +47,13 @@ namespace projectTracker.Api.Controllers
          await  _syncManager.SyncAsync(CancellationToken.None);
             var projects = await _context.Projects.ToListAsync(CancellationToken.None);
             return Ok(projects);
+        }
+        [AllowAnonymous]
+        [HttpGet("users")]
+        public async Task<IActionResult> GetUsers()
+        {
+            var users = await _jiraAdapter.GetAppUsersAsync(CancellationToken.None);
+            return Ok(users);
         }
     }
 }

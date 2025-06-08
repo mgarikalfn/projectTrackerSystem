@@ -1,6 +1,11 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Threading.Tasks;
+using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using projectTracker.Application.Common;
+using projectTracker.Application.Dto.Project;
+using projectTracker.Application.Features.Project.Query;
 
 namespace projectTracker.Api.Controllers
 {
@@ -10,6 +15,12 @@ namespace projectTracker.Api.Controllers
 
     public class ProjectController : ControllerBase
     {
+        private readonly IMediator _mediator;
+        public ProjectController(IMediator mediator) {
+            _mediator = mediator;
+        }
+
+
         [HttpGet("{id}")]
         public IActionResult GetProjectById(int id)
         {
@@ -18,9 +29,11 @@ namespace projectTracker.Api.Controllers
 
         [AllowAnonymous]
         [HttpGet("public")]
-        public IActionResult PublicEndpoint()
+        public async Task<IActionResult> GetProjects([FromQuery] ProjectFilterDto projectFilter)
         {
-            return Ok("This is public");
+            var result = await _mediator.Send(new GetAllProjectsQuery(projectFilter));
+
+            return result.ToActionResult();
         }
     }
 

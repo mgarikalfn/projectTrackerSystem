@@ -12,5 +12,7 @@ namespace projectTracker.Application.Interfaces
         Task<List<ProjectDto>> GetProjectsAsync(CancellationToken ct);
         Task<List<TaskDto>> GetRecentTasksAsync(DateTime lastSyncTime, CancellationToken ct);
         Task<ProgressMetricsDto> GetProjectMetricsAsync(string projectKey, CancellationToken ct);
+
+        Task<List<UsersDto>> GetAppUsersAsync(CancellationToken ct);
     }
 }

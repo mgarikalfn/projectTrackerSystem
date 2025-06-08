@@ -103,9 +103,13 @@ namespace projectTracker.Infrastructure.Services
                 .ToListAsync();
 
             return await _dbContext.RolePermissions
-                .AnyAsync(rp =>
-                    roleIds.Contains(rp.RoleId) &&
-                    rp.Permission.PermissionName == permission);
+    .Where(rp => roleIds.Contains(rp.RoleId))
+    .Join(_dbContext.Permissions,
+          rp => rp.PermissionId,
+          p => p.Id,
+          (rp, p) => p)
+    .AnyAsync(p => p.Action == permission);
+
         }
     }
 }
