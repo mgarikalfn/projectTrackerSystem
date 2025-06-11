@@ -22,6 +22,9 @@ builder.Services.AddControllers(options =>
     options.Filters.Add<CustomAuthorizeAttribute>(); // ? Correct global filter registration
 });
 
+
+var jiraToken = builder.Configuration["Jira:ApiToken"];   // ? string
+
 // 3. Swagger configuration with JWT support
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -90,14 +93,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Seed initial data
-//using (var scope = app.Services.CreateScope())
-//{
-//    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-//    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-//    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<UserRole>>();
 
-//    await DbSeeder.Seed(dbContext, userManager, roleManager);
-//}
 
 app.Run();
