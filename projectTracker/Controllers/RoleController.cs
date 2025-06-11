@@ -2,10 +2,12 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using projectTracker.Application.Common;
 using projectTracker.Application.Dto.Role;
 using projectTracker.Application.Features.Role.Command;
 using projectTracker.Application.Features.Role.Query;
+using ProjectTracker.Infrastructure.Data;
 
 //using projectTracker.Application.Features.Role.Query;
 
@@ -19,11 +21,13 @@ namespace projectTracker.Api.Controllers
         
         private readonly IMediator _mediator;
         private readonly IMapper _mapper;
+        private readonly AppDbContext _dbContext;
 
-        public RoleController( IMediator mediator, IMapper mapper)
+        public RoleController( IMediator mediator, IMapper mapper , AppDbContext context)
         { 
             _mediator = mediator;
             _mapper = mapper;
+            _dbContext = context;
         }
 
         [HttpGet]
@@ -51,8 +55,15 @@ namespace projectTracker.Api.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateRole(string id , [FromBody] RoleUpdateDto roleDto)
         {
-            var command = _mapper.Map<UpdateRoleCommand>(roleDto);
-            command.Id = id;
+            var command = new UpdateRoleCommand
+            {
+                Name = roleDto.Name,
+                Description = roleDto.Description,
+                PermissionIdsToAdd = roleDto.PermissionsToAdd,
+                Id = id
+            };
+            //var command = _mapper.Map<UpdateRoleCommand>(roleDto);
+            //command.Id = id;
             var result = await _mediator.Send(command);
             return result.IsSuccess
             ? Ok(new { success = true })
@@ -62,6 +73,7 @@ namespace projectTracker.Api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteRole(string id)
         {
+           
             var result = _mediator.Send(new DeleteRoleCommand { Id = id });
             return Ok(result);
         }

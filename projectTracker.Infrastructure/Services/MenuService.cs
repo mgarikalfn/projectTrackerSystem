@@ -75,6 +75,7 @@ namespace projectTracker.Infrastructure.Services
                 Name = item.Name,
                 Url = item.Url,
                 Icon = item.Icon,
+                Order = item.Order,
                 Children = new List<MenuItemDto>()
             };
 

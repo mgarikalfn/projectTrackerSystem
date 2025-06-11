@@ -18,6 +18,7 @@ namespace projectTracker.Application.Dto
         public DateTime UpdatedDate { get; set; }
         public DateTime? DueDate { get; set; }
         public int StoryPoints { get; set; }
+        public string? Priority { get; set; }
     }
 
 }

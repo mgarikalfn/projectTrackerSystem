@@ -37,7 +37,8 @@ namespace projectTracker.Application.Features.Privilege.Query
                     Id = p.Id,
                     PermissionName = p.PermissionName,
                     Description = p.Description,
-                    Action = p.Action
+                    Action = p.Action,
+                    CreatedAt = p.CreatedAt
                 })
                 .ToList(); // Removed .AsReadOnly() to ensure compatibility with IReadOnlyList  
 
