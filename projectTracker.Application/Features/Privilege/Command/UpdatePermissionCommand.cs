@@ -40,23 +40,27 @@ namespace projectTracker.Application.Features.Privilege.Command
                 // Track changes for partial update
                 bool hasChanges = false;
 
-                if (request.PermissionName != null && permission.PermissionName != request.PermissionName)
+                if (!string.IsNullOrWhiteSpace(request.PermissionName) &&
+     permission.PermissionName != request.PermissionName)
                 {
                     permission.PermissionName = request.PermissionName;
                     hasChanges = true;
                 }
 
-                if (request.Description != null && permission.Description != request.Description)
+                if (!string.IsNullOrWhiteSpace(request.Description) &&
+                    permission.Description != request.Description)
                 {
                     permission.Description = request.Description;
                     hasChanges = true;
                 }
 
-                if (request.Action != null && permission.Action != request.Action)
+                if (!string.IsNullOrWhiteSpace(request.Action) &&
+                    permission.Action != request.Action)
                 {
                     permission.Action = request.Action;
                     hasChanges = true;
                 }
+
 
                 if (hasChanges)
                 {

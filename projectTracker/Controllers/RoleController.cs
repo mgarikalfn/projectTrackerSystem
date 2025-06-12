@@ -74,7 +74,7 @@ namespace projectTracker.Api.Controllers
         public async Task<IActionResult> DeleteRole(string id)
         {
            
-            var result = _mediator.Send(new DeleteRoleCommand { Id = id });
+            var result = await _mediator.Send(new DeleteRoleCommand { Id = id });
             return Ok(result);
         }
         [HttpPost("assign-privileges")]

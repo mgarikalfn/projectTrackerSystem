@@ -32,9 +32,6 @@ namespace projectTracker.Application.Features.Role.Command
         }
         public async Task<Result> Handle(UpdateRoleCommand request, CancellationToken cancellationToken)
         {
-            // Initialize logger (you'll need to inject ILogger in constructor)
-            // private readonly ILogger<UpdateRoleCommandHandler> _logger;
-
             try
             {
                 _logger.LogInformation("Starting role update for role ID: {RoleId}", request.Id);
@@ -52,8 +49,8 @@ namespace projectTracker.Application.Features.Role.Command
                 // Track if any role properties changed
                 bool hasChanges = false;
 
-                // 2. Update role properties
-                if (request.Name != null && role.Name != request.Name)
+                // 2. Update role properties - only if new value is not null/empty
+                if (!string.IsNullOrEmpty(request.Name) && role.Name != request.Name)
                 {
                     _logger.LogDebug("Updating role name from '{OldName}' to '{NewName}'", role.Name, request.Name);
                     role.Name = request.Name;
@@ -61,7 +58,7 @@ namespace projectTracker.Application.Features.Role.Command
                     hasChanges = true;
                 }
 
-                if (request.Description != null && role.Description != request.Description)
+                if (!string.IsNullOrEmpty(request.Description) && role.Description != request.Description)
                 {
                     _logger.LogDebug("Updating role description");
                     role.Description = request.Description;
@@ -74,64 +71,63 @@ namespace projectTracker.Application.Features.Role.Command
                     await _unitOfWork.RoleRepository.UpdateAsync(role);
                 }
 
-                // 3. Handle permissions
-                if (request.PermissionIdsToAdd != null && request.PermissionIdsToAdd.Any())
+                // 3. Handle permissions - replace all existing permissions with new list
+                if (request.PermissionIdsToAdd != null) // This now represents the complete new list of permissions
                 {
-                    _logger.LogDebug("Processing {Count} permission IDs to add", request.PermissionIdsToAdd.Count);
+                    _logger.LogDebug("Processing permission updates for role");
 
-                    // Get existing permissions
-                    _logger.LogDebug("Fetching existing role permissions");
-                    var allRolePermissions = await _unitOfWork.RolePermissionRepository.GetAllAsync();
-                    var existingPermissionIds = allRolePermissions
-                        .Where(rp => rp.RoleId == request.Id)
-                        .Select(rp => rp.PermissionId)
-                        .ToList();
-
-                    _logger.LogDebug("Found {Count} existing permissions for role", existingPermissionIds.Count);
-
-                    // Get all valid permissions
-                    _logger.LogDebug("Fetching all permissions to validate");
+                    // Get all valid permissions from database
                     var allPermissions = await _unitOfWork.PermissionRepository.GetAllAsync();
-                    var validPermissions = allPermissions
-                        .Where(p => request.PermissionIdsToAdd.Contains(p.Id))
-                        .ToList();
 
-                    _logger.LogDebug("Found {Count} valid permissions out of {RequestedCount} requested",
-                        validPermissions.Count, request.PermissionIdsToAdd.Count);
-
-                    // Check for invalid permissions
-                    var invalidIds = request.PermissionIdsToAdd.Except(validPermissions.Select(p => p.Id)).ToList();
+                    // Validate requested permissions exist
+                    var invalidIds = request.PermissionIdsToAdd.Except(allPermissions.Select(p => p.Id)).ToList();
                     if (invalidIds.Any())
                     {
                         _logger.LogWarning("Invalid permission IDs: {InvalidIds}", string.Join(", ", invalidIds));
+                        return Result.Fail($"Invalid permission IDs: {string.Join(", ", invalidIds)}");
                     }
 
-                    // Add missing permissions
-                    int addedCount = 0;
-                    foreach (var permission in validPermissions)
-                    {
-                        if (!existingPermissionIds.Contains(permission.Id))
-                        {
-                            _logger.LogDebug("Adding permission {PermissionId} to role {RoleId}",
-                                permission.Id, role.Id);
+                    // Get current role permissions
+                    var existingRolePermissions = (await _unitOfWork.RolePermissionRepository.GetAllAsync())
+                        .Where(rp => rp.RoleId == request.Id)
+                        .ToList();
 
-                            var rolePermission = new RolePermission
+                    // Determine permissions to remove (existing ones not in new list)
+                    var permissionsToRemove = existingRolePermissions
+                        .Where(erp => !request.PermissionIdsToAdd.Contains(erp.PermissionId))
+                        .ToList();
+
+                    // Determine permissions to add (new ones not in existing list)
+                    var permissionsToAdd = request.PermissionIdsToAdd
+                        .Except(existingRolePermissions.Select(erp => erp.PermissionId))
+                        .ToList();
+
+                    // Remove old permissions
+                    if (permissionsToRemove.Any())
+                    {
+                        _logger.LogDebug("Removing {Count} permissions from role", permissionsToRemove.Count);
+                        foreach (var permission in permissionsToRemove)
+                        {
+                            await _unitOfWork.RolePermissionRepository.DeleteAsync(permission);
+                        }
+                    }
+
+                    // Add new permissions
+                    if (permissionsToAdd.Any())
+                    {
+                        _logger.LogDebug("Adding {Count} permissions to role", permissionsToAdd.Count);
+                        foreach (var permissionId in permissionsToAdd)
+                        {
+                            await _unitOfWork.RolePermissionRepository.AddAsync(new RolePermission
                             {
                                 RoleId = role.Id,
-                                PermissionId = permission.Id
-                            };
-
-                            await _unitOfWork.RolePermissionRepository.AddAsync(rolePermission);
-                            addedCount++;
-                        }
-                        else
-                        {
-                            _logger.LogDebug("Permission {PermissionId} already exists for role {RoleId}",
-                                permission.Id, role.Id);
+                                PermissionId = permissionId
+                            });
                         }
                     }
 
-                    _logger.LogInformation("Added {Count} new permissions to role {RoleId}", addedCount, role.Id);
+                    _logger.LogInformation("Updated permissions for role {RoleId}. Added: {Added}, Removed: {Removed}",
+                        role.Id, permissionsToAdd.Count, permissionsToRemove.Count);
                 }
 
                 _logger.LogDebug("Committing transaction");
@@ -146,7 +142,6 @@ namespace projectTracker.Application.Features.Role.Command
                 await _unitOfWork.RollbackAsync();
                 return Result.Fail($"Update failed: {ex.Message}");
             }
-        }
-
+        }   
     }
 }

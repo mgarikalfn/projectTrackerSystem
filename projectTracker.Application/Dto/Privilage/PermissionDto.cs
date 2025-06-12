@@ -25,9 +25,9 @@ namespace projectTracker.Application.Dto.Privilage
 
         public class UpdatePermissionDto 
         {
-        public string PermissionName { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public string Action { get; set; } = string.Empty;
+        public string? PermissionName { get; set; } = string.Empty;
+        public string? Description { get; set; } = string.Empty;
+        public string? Action { get; set; } = string.Empty;
     }
     
 }

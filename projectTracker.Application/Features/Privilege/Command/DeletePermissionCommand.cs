@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentResults;
 using MediatR;
 using projectTracker.Application.Interfaces;
+using projectTracker.Domain.Entities;
 
 namespace projectTracker.Application.Features.Privilege.Command
 {
@@ -31,16 +32,23 @@ namespace projectTracker.Application.Features.Privilege.Command
             CancellationToken cancellationToken)
         {
             // 1. Check if privilege exists
-            var privilege = await _repository.GetByIdAsync(request.Id.ToString());
+            var privilege = await _repository.GetByIdAsync(request.Id);
             if (privilege == null)
                 return Result.Fail("Privilege not found");
 
             // 2. Check role assignments using UnitOfWork
             var rolePrivileges = await _unitOfWork.RolePermissionRepository
                 .GetWhereAsync(rp => rp.PermissionId == request.Id); // Convert request.Id to string
+            if (rolePrivileges != null && rolePrivileges.Any())
 
-            if (rolePrivileges?.Count > 0)
-                return Result.Fail("Cannot delete privilege assigned to roles");
+            {
+                foreach (var mapping in rolePrivileges)
+                {
+                    await _unitOfWork.RolePermissionRepository.DeleteAsync(mapping);
+                }
+            }
+
+            
 
             // 3. Proceed with deletion
             await _repository.DeleteAsync(privilege);
