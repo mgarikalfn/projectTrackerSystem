@@ -1,28 +1,29 @@
-# Use .NET 9.0 Preview SDK image to build the application
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:9.0-preview AS build
+WORKDIR /src
 
-WORKDIR /app
+# Copy solution and project files
+COPY projectTracker.sln ./
+COPY projectTracker/projectTracker.Api.csproj ./projectTracker/
+COPY projectTracker.Application/projectTracker.Application.csproj ./projectTracker.Application/
+COPY projectTracker.Infrastructure/projectTracker.Infrastructure.csproj ./projectTracker.Infrastructure/
+COPY projectTracker.Domain/projectTracker.Domain.csproj ./projectTracker.Domain/
 
-# Copy solution and restore dependencies
-COPY *.sln ./
-COPY projectTracker.Application/*.csproj ./projectTracker.Application/
-COPY projectTracker.Infrastructure/*.csproj ./projectTracker.Infrastructure/
-COPY projectTracker.Domain/*.csproj ./projectTracker.Domain/
-COPY projectTracker.Api/*.csproj ./projectTracker.Api/
-
+# Restore dependencies
 RUN dotnet restore
 
-# Copy everything else and build
+# Copy everything
 COPY . .
 
-WORKDIR /app/projectTracker.Api
-RUN dotnet publish -c Release -o out
+# Build the application
+WORKDIR /src/projectTracker
+RUN dotnet build -c Release --no-restore
 
-# Use .NET 9.0 Preview ASP.NET runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-preview AS base
+# Publish the application
+RUN dotnet publish -c Release -o /app/publish --no-restore
 
+# Runtime stage
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-preview AS runtime
 WORKDIR /app
-COPY --from=build /app/projectTracker.Api/out .
-
-# Set the entry point
+COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "projectTracker.Api.dll"]
