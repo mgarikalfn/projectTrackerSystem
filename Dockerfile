@@ -1,24 +1,29 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0-preview AS build
 WORKDIR /src
 
 # Copy solution and project files
-COPY projectTracker.sln .
-COPY projectTracker.Application/projectTracker.Application.csproj projectTracker.Application/
-COPY projectTracker.Domain/projectTracker.Domain.csproj projectTracker.Domain/
-COPY projectTracker.Infrastructure/projectTracker.Infrastructure.csproj projectTracker.Infrastructure/
-COPY projectTracker/projectTracker.csproj projectTracker/
+COPY projectTracker.sln ./
+COPY projectTracker/projectTracker.Api.csproj ./projectTracker/
+COPY projectTracker.Application/projectTracker.Application.csproj ./projectTracker.Application/
+COPY projectTracker.Infrastructure/projectTracker.Infrastructure.csproj ./projectTracker.Infrastructure/
+COPY projectTracker.Domain/projectTracker.Domain.csproj ./projectTracker.Domain/
 
-# Restore
-RUN dotnet restore projectTracker.sln
+# Restore dependencies
+RUN dotnet restore
 
-# Copy everything and publish
+# Copy everything
 COPY . .
-RUN dotnet publish projectTracker/projectTracker.csproj -c Release -o /app/out
+
+# Build the application
+WORKDIR /src/projectTracker
+RUN dotnet build -c Release --no-restore
+
+# Publish the application
+RUN dotnet publish -c Release -o /app/publish --no-restore
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-preview AS runtime
 WORKDIR /app
-COPY --from=build /app/out .
-
-ENTRYPOINT ["dotnet", "projectTracker.dll"]
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "projectTracker.Api.dll"]
