@@ -83,5 +83,13 @@ namespace projectTracker.Domain.Aggregates
                 Progress = ProgressMetrics.Empty()
             };
         }
+
+        public void UpdateDetails(string name, string? description, string? leadName)
+        {
+            Name = name;
+            Description = description;
+            Lead = leadName;
+        }
+
     }
 }

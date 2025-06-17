@@ -40,7 +40,7 @@ namespace projectTracker.Infrastructure.BackgroundTask
                     }
                 }
 
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
             }
         }
     }

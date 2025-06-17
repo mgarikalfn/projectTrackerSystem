@@ -37,16 +37,58 @@ namespace projectTracker.Application.Features.Menu.Command
             if (menuItem == null)
                 return Result.Fail("Menu item not found");
 
-            // Partial update (only modify provided fields)
-            if (request.Name != null) menuItem.Name = request.Name;
-            if (request.Url != null) menuItem.Url = request.Url;
-            if (request.Icon != null) menuItem.Icon = request.Icon;
-            if (request.RequiredPrivilege != null) menuItem.RequiredPrivilege = request.RequiredPrivilege;
-            if (request.ParentId.HasValue) menuItem.ParentId = request.ParentId;
-            if (request.Order.HasValue) menuItem.Order = request.Order.Value;
-            if (request.IsActive.HasValue) menuItem.IsActive = request.IsActive.Value;
+            var hasChanges = false;
 
-            await _menuRepository.UpdateAsync(menuItem);
+            if (!string.IsNullOrWhiteSpace(request.Name) && menuItem.Name != request.Name)
+            {
+                hasChanges = true;
+                menuItem.Name = request.Name;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Url) && menuItem.Url != request.Url)
+            {
+                hasChanges = true;
+                menuItem.Url = request.Url;
+            }
+
+            if (!string.IsNullOrEmpty(request.Icon) && menuItem.Icon != request.Icon)
+            {
+                hasChanges = true;
+                menuItem.Icon = request.Icon;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.RequiredPrivilege) && menuItem.RequiredPrivilege != request.RequiredPrivilege)
+            {
+                hasChanges = true;
+                menuItem.RequiredPrivilege = request.RequiredPrivilege;
+            }
+
+            // ParentId change check
+            if (request.ParentId != null && menuItem.ParentId != request.ParentId)
+            {
+                hasChanges = true;
+                menuItem.ParentId = request.ParentId;
+            }
+
+            // Order change check and must be positive
+            if (request.Order != null && menuItem.Order != request.Order)
+            {
+                if (request.Order <= 0)
+                    return Result.Fail("Order must be a positive number");
+                hasChanges = true;
+                menuItem.Order = request.Order.Value;
+            }
+
+            // IsActive change check
+            if (request.IsActive != null && menuItem.IsActive != request.IsActive)
+            {
+                hasChanges = true;
+                menuItem.IsActive = request.IsActive.Value;
+            }
+
+            if (hasChanges)
+                await _menuRepository.UpdateAsync(menuItem);
+
             return Result.Ok(menuItem);
         }
     }

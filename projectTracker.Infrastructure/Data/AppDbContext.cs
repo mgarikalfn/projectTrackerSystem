@@ -20,6 +20,8 @@ namespace ProjectTracker.Infrastructure.Data
         public DbSet<MenuItem> MenuItems { get; set; }
         public DbSet<Permission> Permissions { get; set; }
         public DbSet<RolePermission> RolePermissions { get; set; }
+        public DbSet<Board> Boards { get; set; }
+        public DbSet<Sprint> Sprints { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

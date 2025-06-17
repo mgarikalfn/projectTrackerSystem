@@ -13,12 +13,12 @@ namespace projectTracker.Application.Features.Privilege.Command
 {
 
     public record CreatePermissionCommand(CreatePermissionDto PermissionDto)
-            : IRequest<Result<Permission>>
+            : IRequest<Result<PermissionDto>>
     {
        
     }
 
-    public class CreatePermissionCommandHandler : IRequestHandler<CreatePermissionCommand, Result<Permission>>
+    public class CreatePermissionCommandHandler : IRequestHandler<CreatePermissionCommand, Result<PermissionDto>>
     {
         private readonly IRepository<Domain.Entities.Permission> _repository;
 
@@ -27,7 +27,7 @@ namespace projectTracker.Application.Features.Privilege.Command
             _repository = repository;
         }
 
-        public async Task<Result<Permission>> Handle(CreatePermissionCommand request, CancellationToken cancellationToken)
+        public async Task<Result<PermissionDto>> Handle(CreatePermissionCommand request, CancellationToken cancellationToken)
         {
             var permission = new Domain.Entities.Permission
             {
@@ -40,12 +40,20 @@ namespace projectTracker.Application.Features.Privilege.Command
             try
             {
                 var createdPermission = await _repository.AddAsync(permission);
-                return Result.Ok(createdPermission);
+                var permissionDto = new PermissionDto
+                {
+                    Id = createdPermission.Id,
+                    PermissionName = createdPermission.PermissionName,
+                    Description = createdPermission.Description,
+                    Action = createdPermission.Action,
+                    CreatedAt = createdPermission.CreatedAt
+                };
+                return Result.Ok(permissionDto);
             }
             catch (Exception ex)
             {
                 // Log the exception if needed
-                return Result.Fail<Domain.Entities.Permission>(new Error("Failed to create permission").CausedBy(ex));
+                return Result.Fail<PermissionDto>(new Error("Failed to create permission").CausedBy(ex));
             }
         }
     }

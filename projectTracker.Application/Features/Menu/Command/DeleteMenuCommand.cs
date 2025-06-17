@@ -11,20 +11,20 @@ using projectTracker.Domain.Entities;
 namespace projectTracker.Application.Features.Menu.Command
 {
   
-    public class DeleteMenuCommand : IRequest<Result<bool>>
+    public class DeleteMenuCommand : IRequest<Result>
     {
         public int Id { get; set; }
     }
 
     
-    public class DeleteMenuCommandHandler : IRequestHandler<DeleteMenuCommand, Result<bool>>
+    public class DeleteMenuCommandHandler : IRequestHandler<DeleteMenuCommand, Result>
     {
         private readonly IRepository<MenuItem> _menuRepository;
 
         public DeleteMenuCommandHandler(IRepository<MenuItem> menuRepository)
             => _menuRepository = menuRepository;
 
-        public async Task<Result<bool>> Handle(DeleteMenuCommand request, CancellationToken cancellationToken)
+        public async Task<Result> Handle(DeleteMenuCommand request, CancellationToken cancellationToken)
         {
             var menuItem = await _menuRepository.FindAsync(m => m.Id == request.Id);
             if (menuItem == null)
@@ -34,7 +34,7 @@ namespace projectTracker.Application.Features.Menu.Command
             menuItem.IsActive = false;
             await _menuRepository.UpdateAsync(menuItem);
 
-            return Result.Ok(true);
+            return Result.Ok();
         }
     }
 }

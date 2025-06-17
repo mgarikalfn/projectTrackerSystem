@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 
 namespace projectTracker.Application.Dto
 {
@@ -11,12 +7,13 @@ namespace projectTracker.Application.Dto
         public int TotalTasks { get; set; }
         public int CompletedTasks { get; set; }
         public int OpenIssues { get; set; }
-        public int TotalStoryPoints { get; set; }
-        public int CompletedStoryPoints { get; set; }
-        public int ActiveBlockers { get; set; }         // new
-        public int RecentUpdates { get; set; }          // new
+        public decimal TotalStoryPoints { get; set; }
+        public decimal CompletedStoryPoints { get; set; }
+        public int ActiveBlockers { get; set; }
+        public int RecentUpdates { get; set; }
         public DateTime LastCalculated { get; set; }
+        public int OverdueTasks { get; set; } // NEW: Added for risk calculation
     }
 
-
+    // ... (rest of your DTOs)
 }

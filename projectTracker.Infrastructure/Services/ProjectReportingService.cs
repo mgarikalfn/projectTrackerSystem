@@ -1,0 +1,206 @@
+﻿
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using projectTracker.Application.Dto.Project;
+using projectTracker.Application.Interfaces;
+using projectTracker.Domain.Entities; 
+using ProjectTracker.Infrastructure.Data;
+using TaskStatus = projectTracker.Domain.Enums.TaskStatus; 
+
+namespace projectTracker.Infrastructure.Services
+{
+    public class ProjectReportingService : IProjectReportingService
+    {
+        private readonly AppDbContext _dbContext;
+        private readonly ILogger<ProjectReportingService> _logger;
+
+        public ProjectReportingService(AppDbContext dbContext, ILogger<ProjectReportingService> logger)
+        {
+            _dbContext = dbContext;
+            _logger = logger;
+        }
+
+        public async Task<ProjectSprintOverviewDto?> GetProjectSprintOverviewAsync(string projectKey, CancellationToken ct)
+        {
+            var project = await _dbContext.Projects
+                                          .Include(p => p.Tasks) // Include tasks for calculations
+                                          .FirstOrDefaultAsync(p => p.Key == projectKey, ct);
+
+            if (project == null)
+            {
+                _logger.LogWarning("Project {ProjectKey} not found for overview report.", projectKey);
+                return null;
+            }
+
+            var allSprints = await GetAllSprintsForProjectAsync(projectKey, ct);
+
+            var overview = new ProjectSprintOverviewDto
+            {
+                ProjectKey = project.Key,
+                ProjectName = project.Name,
+                Sprints = allSprints // Already detailed SprintReportDto
+            };
+
+            return overview;
+        }
+
+        public async Task<List<SprintReportDto>> GetAllSprintsForProjectAsync(string projectKey, CancellationToken ct)
+        {
+            // Step 1: Get the Project ID
+            var projectId = await _dbContext.Projects
+                                            .Where(p => p.Key == projectKey)
+                                            .Select(p => p.Id)
+                                            .FirstOrDefaultAsync(ct);
+
+            if (projectId == null)
+            {
+                _logger.LogWarning("Project {ProjectKey} not found, cannot get sprints.", projectKey);
+                return new List<SprintReportDto>();
+            }
+
+            // Step 2: Get all tasks for this project, including their Sprint and Assignee details
+            var projectTasks = await _dbContext.Tasks
+                                               .Where(t => t.ProjectId == projectId)
+                                               .Include(t => t.Sprint) // Include Sprint navigation property
+                                               .ToListAsync(ct);
+
+            // Step 3: Extract unique sprints associated with these tasks
+            var relevantSprints = projectTasks
+                                    .Where(t => t.Sprint != null)
+                                    .Select(t => t.Sprint!)
+                                    .DistinctBy(s => s.Id) // Use DistinctBy from System.Linq if C# 10+, otherwise manually
+                                    .OrderByDescending(s => s.StartDate ?? DateTime.MinValue) // Order by start date
+                                    .ToList();
+
+            var sprintReports = new List<SprintReportDto>();
+
+            foreach (var sprint in relevantSprints)
+            {
+                sprintReports.Add(await BuildSprintReportDto(sprint, projectTasks.Where(t => t.SprintId == sprint.Id).ToList(), ct));
+            }
+
+            return sprintReports;
+        }
+
+
+        public async Task<SprintReportDto?> GetSprintReportAsync(Guid sprintId, CancellationToken ct)
+        {
+            var sprint = await _dbContext.Sprints
+                                         .Include(s => s.Board) // Include board for board name
+                                         .FirstOrDefaultAsync(s => s.Id == sprintId, ct);
+
+            if (sprint == null)
+            {
+                _logger.LogWarning("Sprint with ID {SprintId} not found for report.", sprintId);
+                return null;
+            }
+
+            // Get all tasks associated with this sprint
+            var tasksInSprint = await _dbContext.Tasks
+                                                .Where(t => t.SprintId == sprintId)
+                                                .ToListAsync(ct);
+
+            return await BuildSprintReportDto(sprint, tasksInSprint, ct);
+        }
+
+        // Helper method to build a single SprintReportDto
+        private async Task<SprintReportDto> BuildSprintReportDto(Sprint sprint, List<ProjectTask> tasksInSprint, CancellationToken ct)
+        {
+            // Metrics Calculations
+            var totalStoryPoints = tasksInSprint
+                .Where(t => t.IssueType == "Story" && t.StoryPoints.HasValue) // Only stories for SP
+                .Sum(t => t.StoryPoints!.Value);
+
+            var completedStoryPoints = tasksInSprint
+                .Where(t => t.IssueType == "Story" && t.Status == TaskStatus.Done && t.StoryPoints.HasValue)
+                .Sum(t => t.StoryPoints!.Value);
+
+            var totalTasks = tasksInSprint.Count;
+            var completedTasks = tasksInSprint.Count(t => t.Status == TaskStatus.Done);
+
+            var activeBlockers = tasksInSprint.Count(t => t.Status == TaskStatus.Blocked); // Using your Enum
+            var overdueTasks = tasksInSprint.Count(t => t.DueDate.HasValue && t.DueDate.Value < DateTime.Today && t.Status != TaskStatus.Done);
+            var bugsCreatedThisSprint = tasksInSprint.Count(t => t.IssueType == "Bug" && t.CreatedDate >= sprint.StartDate && t.CreatedDate <= sprint.EndDate);
+
+            // Task Status Breakdown
+            var taskStatusCounts = tasksInSprint
+                .GroupBy(t => t.Status.ToString()) // Group by Enum name
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // Issue Type Counts
+            var issueTypeCounts = tasksInSprint
+                .GroupBy(t => t.IssueType)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // Team Workload
+            var developerWorkloads = tasksInSprint
+                .Where(t => t.AssigneeId != null) // Only assigned tasks
+                .GroupBy(t => new { t.AssigneeId, t.AssigneeName })
+                .Select(g => new DeveloperWorkloadDto
+                {
+                    AssigneeId = g.Key.AssigneeId!,
+                    AssigneeName = g.Key.AssigneeName!,
+                    EstimatedWork = g.Sum(t => t.StoryPoints ?? (decimal)(t.TimeEstimateMinutes ?? 0) / 60), // Sum SP or convert minutes to hours
+                    CompletedWork = g.Where(t => t.Status == TaskStatus.Done)
+                                     .Sum(t => t.StoryPoints ?? (decimal)(t.TimeEstimateMinutes ?? 0) / 60),
+                    TaskStatusBreakdown = g.GroupBy(t => t.Status.ToString())
+                                           .ToDictionary(sg => sg.Key, sg => sg.Count())
+                }).ToList();
+
+            // Recent Activity (This is more complex and depends on SyncHistory for changes or fetching changelog)
+            // For a simple report, you might just show tasks updated recently within the sprint.
+            // For true changelog, you'd need to fetch SyncHistory records, or potentially call JiraAdapter.GetIssueChangelogAsync
+            // for each task, which is very inefficient for a report.
+            var recentActivities = tasksInSprint
+                .OrderByDescending(t => t.UpdatedDate)
+                .Take(5) // Get 5 most recently updated tasks
+                .Select(t => new RecentActivityItemDto
+                {
+                    TaskKey = t.Key,
+                    Description = $"{t.IssueType} {t.Key} updated (Status: {t.Status}, Assignee: {t.AssigneeName})", // Simplified
+                    ChangedBy = t.AssigneeName, // Or get from actual changelog if stored
+                    Timestamp = t.UpdatedDate
+                }).ToList();
+
+
+            // Calculate TasksMovedFromPreviousSprint - This is hard without historical data
+            // To implement this accurately, you'd need:
+            // 1. To store historical sprint assignments for tasks in your DB (e.g., in a TaskSprintHistory table)
+            // 2. Or, fetch changelog from Jira for *every* task in the current sprint during sync,
+            //    parse it, and then store that specific "moved from sprint X to sprint Y" event.
+            // For this report, we'll leave it as 0 unless you implement the historical tracking.
+            var tasksMovedFromPreviousSprint = 0;
+
+
+            return new SprintReportDto
+            {
+                Id = sprint.Id,
+                JiraId = sprint.JiraId,
+                Name = sprint.Name,
+                State = sprint.State,
+                StartDate = sprint.StartDate,
+                EndDate = sprint.EndDate,
+                CompleteDate = sprint.CompleteDate,
+                Goal = sprint.Goal,
+                BoardName = sprint.Board?.Name ?? "N/A", // From navigation property
+
+                TotalStoryPoints = totalStoryPoints,
+                CompletedStoryPoints = completedStoryPoints,
+                StoryPointCompletionPercentage = totalStoryPoints > 0 ? (completedStoryPoints / totalStoryPoints) * 100 : 0,
+                TotalTasks = totalTasks,
+                CompletedTasks = completedTasks,
+                TaskCompletionPercentage = totalTasks > 0 ? (decimal)completedTasks / totalTasks * 100 : 0,
+                ActiveBlockers = activeBlockers,
+                OverdueTasks = overdueTasks,
+                BugsCreatedThisSprint = bugsCreatedThisSprint,
+                TasksMovedFromPreviousSprint = tasksMovedFromPreviousSprint,
+
+                TaskStatusCounts = taskStatusCounts,
+                IssueTypeCounts = issueTypeCounts,
+                DeveloperWorkloads = developerWorkloads,
+                RecentActivities = recentActivities
+            };
+        }
+    }
+}

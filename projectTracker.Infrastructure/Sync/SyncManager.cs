@@ -1,21 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using projectTracker.Application.Dto;
 using projectTracker.Application.Interfaces;
 using projectTracker.Domain.Aggregates;
-using ProjectTracker.Infrastructure.Data;
-using projectTracker.Infrastructure.Risk.Evaluators;
-using projectTracker.Domain.ValueObjects;
-using projectTracker.Infrastructure.Risk;
 using projectTracker.Domain.Entities;
+using projectTracker.Domain.Enums;
+using projectTracker.Domain.ValueObjects;
+using ProjectTracker.Infrastructure.Data;
+using TaskStatus = projectTracker.Domain.Enums.TaskStatus;
 
 namespace projectTracker.Infrastructure.Sync
 {
-
     public class SyncManager : ISyncManager
     {
         private readonly AppDbContext _dbContext;
@@ -37,24 +32,48 @@ namespace projectTracker.Infrastructure.Sync
 
         public async Task SyncAsync(CancellationToken ct)
         {
-            _logger.LogInformation("Starting Jira sync...");
+            _logger.LogInformation("Starting full sync...");
+
+            var syncStartTime = DateTime.UtcNow;
+            var syncHistory = SyncHistory.Start(
+                type: SyncType.Full,
+                projectId: null,
+                trigger: "Manual/Scheduled"
+            );
+            _dbContext.Set<SyncHistory>().Add(syncHistory);
+            await _dbContext.SaveChangesAsync(ct);
+
+            int totalTasksProcessed = 0;
+            int totalTasksCreated = 0;
+            int totalTasksUpdated = 0;
 
             try
             {
-                // Sync users first (they might be referenced by projects)
+                // Initial sync steps (users, boards, projects, tasks)
                 await SyncUsersAsync(ct);
-
-                // Then sync projects
+                await SyncBoardsAndSprintsAsync(ct);
                 await SyncProjectsAsync(ct);
 
-                //sync Tasks
-                await SyncTasksAsync(ct);
+                var taskSyncCounts = await SyncTasksAsync(ct);
+                totalTasksCreated = taskSyncCounts.Created;
+                totalTasksUpdated = taskSyncCounts.Updated;
+                totalTasksProcessed = totalTasksCreated + totalTasksUpdated;
 
-                _logger.LogInformation("Sync completed successfully");
+                // Use the Complete domain method, which should set Duration internally
+                syncHistory.Complete(totalTasksCreated, totalTasksUpdated);
+
+                
+                await _dbContext.SaveChangesAsync(ct);
+
+                _logger.LogInformation("Full sync completed successfully. Created: {Created}, Updated: {Updated}", totalTasksCreated, totalTasksUpdated);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to complete sync");
+                // Use the Fail domain method, which should set Duration internally
+                syncHistory.Fail(ex.Message);
+               
+                await _dbContext.SaveChangesAsync(ct);
+                _logger.LogError(ex, "Failed to complete full sync");
                 throw;
             }
         }
@@ -62,7 +81,6 @@ namespace projectTracker.Infrastructure.Sync
         private async Task SyncUsersAsync(CancellationToken ct)
         {
             _logger.LogInformation("Starting user sync...");
-
             try
             {
                 var jiraUsers = await _adapter.GetAppUsersAsync(ct);
@@ -78,7 +96,6 @@ namespace projectTracker.Infrastructure.Sync
                             continue;
                         }
 
-                        // Find existing user by email or Jira account ID
                         var user = await _dbContext.Users
                             .FirstOrDefaultAsync(u =>
                                 u.Email == jiraUser.Email ||
@@ -86,9 +103,9 @@ namespace projectTracker.Infrastructure.Sync
 
                         if (user == null)
                         {
-                            // Create new user
                             user = new AppUser
                             {
+                                Id = Guid.NewGuid().ToString(),
                                 UserName = jiraUser.Email,
                                 Email = jiraUser.Email,
                                 EmailConfirmed = true,
@@ -97,27 +114,23 @@ namespace projectTracker.Infrastructure.Sync
                                 AvatarUrl = jiraUser.AvatarUrl,
                                 IsActive = jiraUser.Active
                             };
-
                             _dbContext.Users.Add(user);
                             _logger.LogDebug("Added new user {Email}", jiraUser.Email);
                         }
                         else
                         {
-                            // Update existing user
                             user.AccountId = jiraUser.AccountId;
                             user.DisplayName = jiraUser.DisplayName;
                             user.AvatarUrl = jiraUser.AvatarUrl;
                             user.IsActive = jiraUser.Active;
-
                             _logger.LogDebug("Updated existing user {Email}", jiraUser.Email);
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error syncing user {AccountId}", jiraUser.AccountId);
+                        _logger.LogError(ex, "Error processing user {AccountId} during sync", jiraUser.AccountId);
                     }
                 }
-
                 var userChanges = await _dbContext.SaveChangesAsync(ct);
                 _logger.LogInformation("User sync completed. {ChangesCount} changes saved", userChanges);
             }
@@ -128,59 +141,133 @@ namespace projectTracker.Infrastructure.Sync
             }
         }
 
+        private async Task SyncBoardsAndSprintsAsync(CancellationToken ct)
+        {
+            _logger.LogInformation("Starting board and sprint sync...");
+            try
+            {
+                var jiraBoards = await _adapter.GetBoardsAsync(ct);
+                _logger.LogDebug("Retrieved {BoardCount} boards from Jira", jiraBoards.Count);
+
+                foreach (var boardDto in jiraBoards)
+                {
+                    if (boardDto.Type != "scrum")
+                    {
+                        _logger.LogInformation("Skipping sprint sync for board '{BoardName}' (Jira ID: {JiraId}) because its type '{BoardType}' does not support sprints.", boardDto.Name, boardDto.Id, boardDto.Type);
+                        continue;
+                    }
+
+                    try
+                    {
+                        var board = await _dbContext.Boards
+                            .FirstOrDefaultAsync(b => b.JiraId == boardDto.Id, ct);
+
+                        if (board == null)
+                        {
+                            board = new Board(boardDto.Id, boardDto.Name, boardDto.Type);
+                            _dbContext.Boards.Add(board);
+                            _logger.LogDebug("Added new board {BoardName} (Jira ID: {JiraId})", board.Name, board.JiraId);
+                        }
+                        else
+                        {
+                            board.UpdateDetails(boardDto.Name, boardDto.Type);
+                            _logger.LogDebug("Updated existing board {BoardName} (Jira ID: {JiraId})", board.Name, board.JiraId);
+                        }
+
+                        var jiraSprints = await _adapter.GetSprintsForBoardAsync(boardDto.Id, ct);
+                        _logger.LogDebug("Retrieved {SprintCount} sprints for board {BoardName}", jiraSprints.Count, boardDto.Name);
+
+                        foreach (var sprintDto in jiraSprints)
+                        {
+                            try
+                            {
+                                var sprint = await _dbContext.Sprints
+                                    .FirstOrDefaultAsync(s => s.JiraId == sprintDto.Id, ct);
+
+                                if (sprint == null)
+                                {
+                                    sprint = new Sprint(
+                                        sprintDto.Id, board.Id, sprintDto.Name, sprintDto.State,
+                                        sprintDto.StartDate, sprintDto.EndDate, sprintDto.CompleteDate, sprintDto.Goal);
+                                    _dbContext.Sprints.Add(sprint);
+                                    _logger.LogDebug("Added new sprint {SprintName} (Jira ID: {JiraId}) for board {BoardName}", sprint.Name, sprint.JiraId, board.Name);
+                                }
+                                else
+                                {
+                                    sprint.UpdateDetails(
+                                        name: sprintDto.Name,
+                                        state: sprintDto.State,
+                                        startDate: sprintDto.StartDate,
+                                        endDate: sprintDto.EndDate,
+                                        completeDate: sprintDto.CompleteDate,
+                                        goal: sprintDto.Goal
+                                    );
+                                    _logger.LogDebug("Updated existing sprint {SprintName} (Jira ID: {JiraId}) for board {BoardName}", sprint.Name, sprint.JiraId, board.Name);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error processing sprint {SprintId} for board {BoardId}", sprintDto.Id, boardDto.Id);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing board {BoardId} during sync. This board's sprints might not be retrievable.", boardDto.Id);
+                    }
+                }
+                var changes = await _dbContext.SaveChangesAsync(ct);
+                _logger.LogInformation("Board and sprint sync completed. {ChangesCount} changes saved", changes);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to complete board and sprint sync due to an unhandled error.");
+                throw;
+            }
+        }
+
         private async Task SyncProjectsAsync(CancellationToken ct)
         {
             _logger.LogInformation("Starting project sync...");
-
             try
             {
-                var projects = await _adapter.GetProjectsAsync(ct);
-                _logger.LogDebug("Retrieved {ProjectCount} projects from Jira", projects.Count);
+                var jiraProjects = await _adapter.GetProjectsAsync(ct);
+                _logger.LogDebug("Retrieved {ProjectCount} projects from Jira", jiraProjects.Count);
 
-                foreach (var projectDto in projects)
+                foreach (var projectDto in jiraProjects)
                 {
                     try
                     {
-                        // Find or create project
                         var project = await _dbContext.Projects
-                            .FirstOrDefaultAsync(p => p.Key == projectDto.Key, ct)
-                            ?? Project.Create(
+                            .FirstOrDefaultAsync(p => p.Key == projectDto.Key, ct);
+
+                        if (project == null)
+                        {
+                            project = Project.Create(
                                 Id: Guid.NewGuid().ToString(),
                                 key: projectDto.Key,
                                 name: projectDto.Name,
                                 Lead: projectDto.LeadName,
-                                Description: projectDto.Description);
-
-                        // Get and update metrics
-                        var metricsDto = await _adapter.GetProjectMetricsAsync(projectDto.Key, ct);
-                        var metrics = new ProgressMetrics(
-                            totalTasks: metricsDto.OpenIssues,
-                            completedTasks: metricsDto.CompletedTasks,
-                            storyPointsCompleted: metricsDto.CompletedStoryPoints,
-                            storyPointsTotal: metricsDto.TotalStoryPoints,
-                            activeBlockers: metricsDto.ActiveBlockers,
-                            recentUpdates: metricsDto.RecentUpdates);
-
-                        project.UpdateProgressMetrics(metrics);
-
-                        // Calculate and update health
-                        var health = _riskCalculator.Calculate(metricsDto);
-                        project.UpdateHealthMetrics(health);
-
-                        // Update database
-                        if (_dbContext.Entry(project).State == EntityState.Detached)
-                        {
+                                Description: projectDto.Description
+                            );
                             _dbContext.Projects.Add(project);
                             _logger.LogDebug("Added new project {ProjectKey}", project.Key);
                         }
                         else
                         {
+                            project.UpdateDetails(
+                                name: projectDto.Name,
+                                description: projectDto.Description,
+                                leadName: projectDto.LeadName
+                            );
                             _logger.LogDebug("Updated existing project {ProjectKey}", project.Key);
                         }
+
+                        //SyncHistory.LastSynced = DateTime.UtcNow;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error syncing project {ProjectKey}", projectDto.Key);
+                        _logger.LogError(ex, "Error processing project {ProjectKey} during sync", projectDto.Key);
                     }
                 }
 
@@ -194,62 +281,113 @@ namespace projectTracker.Infrastructure.Sync
             }
         }
 
-
-
-
-        private async Task SyncTasksAsync(CancellationToken ct)
+        private async Task<(int Created, int Updated)> SyncTasksAsync(CancellationToken ct)
         {
             _logger.LogInformation("Starting task sync...");
+            int createdCount = 0;
+            int updatedCount = 0;
 
             try
             {
-                // Get all projects from DB to sync tasks for each
                 var projects = await _dbContext.Projects.ToListAsync(ct);
+                var sprintsInDb = await _dbContext.Sprints.ToListAsync(ct);
+                var sprintMap = sprintsInDb.ToDictionary(s => s.JiraId);
 
                 foreach (var project in projects)
                 {
                     try
                     {
                         _logger.LogDebug("Syncing tasks for project {ProjectKey}", project.Key);
-
-                        // Fetch tasks from Jira
                         var jiraTasks = await _adapter.GetProjectTasksAsync(project.Key, ct);
+                        _logger.LogDebug("Retrieved {TaskCount} tasks for project {ProjectKey} from Jira", jiraTasks.Count, project.Key);
+
+                        var existingTasksForProject = await _dbContext.Tasks
+                            .Where(t => t.ProjectId == project.Id)
+                            .ToDictionaryAsync(t => t.Key, ct);
 
                         foreach (var jiraTask in jiraTasks)
                         {
                             try
                             {
-                                // Find existing task or create new one
-                                var task = await _dbContext.Tasks
-                                    .FirstOrDefaultAsync(t => t.Key == jiraTask.Key, ct);
+                                existingTasksForProject.TryGetValue(jiraTask.Key, out var task);
+
+                                Guid? localSprintId = null;
+                                if (jiraTask.CurrentSprintJiraId.HasValue && sprintMap.TryGetValue(jiraTask.CurrentSprintJiraId.Value, out var localSprint))
+                                {
+                                    localSprintId = localSprint.Id;
+                                }
 
                                 if (task == null)
                                 {
-                                    // Create new task
                                     task = ProjectTask.Create(
                                         taskKey: jiraTask.Key,
                                         title: jiraTask.Title,
-                                        projectId: Guid.Parse(project.Id));
+                                        projectId: project.Id,
+                                        issueType: jiraTask.IssueType ?? "Unknown"
+                                    );
+
+                                    task.UpdateFromJira(
+                                        title: jiraTask.Title,
+                                        description: jiraTask.Description,
+                                        jiraStatusName: jiraTask.Status ?? "Unknown",
+                                        assigneeAccountId: jiraTask.AssigneeId,
+                                        assigneeDisplayName: jiraTask.AssigneeName,
+                                        dueDate: jiraTask.DueDate,
+                                        storyPoints: jiraTask.StoryPoints,
+                                        timeEstimateMinutes: jiraTask.TimeEstimateMinutes,
+                                        jiraUpdatedDate: jiraTask.UpdatedDate,
+                                        issueType: jiraTask.IssueType ?? "Unknown",
+                                        epicKey: jiraTask.EpicKey,
+                                        parentKey: jiraTask.ParentKey,
+                                        jiraSprintId: jiraTask.CurrentSprintJiraId
+                                    );
 
                                     _dbContext.Tasks.Add(task);
+                                    createdCount++;
                                     _logger.LogDebug("Added new task {TaskKey}", jiraTask.Key);
                                 }
+                                else
+                                {
+                                    var newStatus = TaskStatusMapper.FromJira(jiraTask.Status ?? "Unknown");
+                                    if (task.Status != newStatus)
+                                    {
+                                        task.UpdateDetails(task.Summary, newStatus, task.AssigneeId, DateTime.UtcNow);
+                                    }
 
-                                // Update task details from Jira
-                                task.UpdateFromJira(
-                                    title: jiraTask.Title,
-                                    description: null, // Add if available
-                                    status: jiraTask.Status,
-                                    assigneeId: jiraTask.AssigneeId, // You might need to map this
-                                    assigneeName: jiraTask.AssigneeName,
-                                    dueDate: null, // Add if available
-                                    storyPoints: (decimal?)jiraTask.StoryPoints,
-                                    timeEstimate: null, // Add if available
-                                    updatedDate: jiraTask.UpdatedDate);
+                                    task.UpdateFromJira(
+                                        title: jiraTask.Title,
+                                        description: jiraTask.Description,
+                                        jiraStatusName: jiraTask.Status ?? "Unknown",
+                                        assigneeAccountId: jiraTask.AssigneeId,
+                                        assigneeDisplayName: jiraTask.AssigneeName,
+                                        dueDate: jiraTask.DueDate,
+                                        storyPoints: jiraTask.StoryPoints,
+                                        timeEstimateMinutes: jiraTask.TimeEstimateMinutes,
+                                        jiraUpdatedDate: jiraTask.UpdatedDate,
+                                        issueType: jiraTask.IssueType ?? "Unknown",
+                                        epicKey: jiraTask.EpicKey,
+                                        parentKey: jiraTask.ParentKey,
+                                        jiraSprintId: jiraTask.CurrentSprintJiraId
+                                    );
+
+                                    updatedCount++;
+                                }
                             }
                             catch (Exception ex)
                             {
-                                _logger.LogError(ex, "Error processing task {TaskKey}", jiraTask.Key);
+                                _logger.LogError(ex, "Error processing task {TaskKey} for project {ProjectKey}", jiraTask.Key, project.Key);
+                            }
+                        }
+
+                        var jiraTaskKeys = jiraTasks.Select(jt => jt.Key).ToHashSet();
+                        var tasksToRemove = existingTasksForProject.Keys.Except(jiraTaskKeys).ToList();
+
+                        foreach (var keyToRemove in tasksToRemove)
+                        {
+                            if (existingTasksForProject.TryGetValue(keyToRemove, out var taskToDelete))
+                            {
+                                _dbContext.Tasks.Remove(taskToDelete);
+                                _logger.LogDebug("Removed task {TaskKey} from DB (no longer in Jira for project {ProjectKey})", keyToRemove, project.Key);
                             }
                         }
                     }
@@ -267,6 +405,8 @@ namespace projectTracker.Infrastructure.Sync
                 _logger.LogError(ex, "Failed to complete task sync");
                 throw;
             }
+
+            return (createdCount, updatedCount);
         }
     }
 }

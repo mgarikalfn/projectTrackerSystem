@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// projectTracker.Infrastructure/Risk/IRiskCalculatorService.cs
+
 using projectTracker.Application.Dto;
 using projectTracker.Domain.ValueObjects;
 

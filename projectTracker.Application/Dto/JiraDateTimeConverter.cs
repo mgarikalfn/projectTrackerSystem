@@ -8,36 +8,29 @@ namespace projectTracker.Application.Dto
     {
         public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            try
+            if (reader.TokenType == JsonTokenType.String)
             {
                 var dateString = reader.GetString();
-
-                if (string.IsNullOrEmpty(dateString))
-                    return DateTime.MinValue;
-
-                // Handle Jira's format with +0000 timezone
-                if (dateString.EndsWith("+0000"))
+                // Jira dates can be complex. Try multiple formats.
+                // ISO 8601 with timezone: "2023-10-26T10:00:00.000+0000"
+                // Or sometimes just "yyyy-MM-dd"
+                if (DateTime.TryParse(dateString, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out DateTime result))
                 {
-                    dateString = dateString.Substring(0, dateString.Length - 5) + "Z";
+                    return result;
                 }
-                // Handle other possible Jira formats if needed
-
-                if (DateTime.TryParse(dateString, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var date))
+                // Fallback for simple date without time
+                if (DateTime.TryParseExact(dateString, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal, out result))
                 {
-                    return date;
+                    return result;
                 }
-
-                return DateTime.MinValue;
             }
-            catch
-            {
-                return DateTime.MinValue;
-            }
+            return default; // Or throw an exception, depending on error handling strategy
         }
 
         public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
         {
-            writer.WriteStringValue(value.ToString("O")); // ISO 8601 format
+            // Standard ISO 8601 format for consistency
+            writer.WriteStringValue(value.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz"));
         }
     }
 }

@@ -11,12 +11,13 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
-        services.AddScoped<ISyncManager, SyncManager>(); // Ensure SyncManager is a class, not a namespace
+       services.AddScoped<ISyncManager, SyncManager>(); // Ensure SyncManager is a class, not a namespace
         services.AddScoped<IProjectManegementAdapter, JiraAdapter>();
         services.AddScoped<IRiskCalculatorService, RiskCalculationService>();
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<MenuService>();
+        services.AddScoped<IProjectReportingService, ProjectReportingService>();
 
         return services;
     }

@@ -19,12 +19,12 @@ namespace projectTracker.Api.Controllers
         {
             _mediator = mediator;
         }
-        [HttpGet]
-        public async Task<IActionResult> GetUsers()
-        {
-            var result = await _mediator.Send(new GetUsersQuery());
-            return result.ToActionResult();
-        }
+        //[HttpGet]
+        //public async Task<IActionResult> GetUsers()
+        //{
+        //    var result = await _mediator.Send(new GetUsersQuery());
+        //    return result.ToActionResult();
+        //}
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(string id)
@@ -33,12 +33,12 @@ namespace projectTracker.Api.Controllers
             return result.ToActionResult();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> CreateUser([FromBody] CreateUserDto userDto)
-        {
-            var result = await _mediator.Send(new CreateUserCommand(userDto));
-            return result.ToActionResult();
-        }
+        //[HttpPost]
+        //public async Task<IActionResult> CreateUser([FromBody] CreateUserDto userDto)
+        //{
+        //    var result = await _mediator.Send(new CreateUserCommand(userDto));
+        //    return result.ToActionResult();
+        //}
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserDto userDto)
