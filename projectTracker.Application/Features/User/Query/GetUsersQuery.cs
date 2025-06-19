@@ -36,7 +36,7 @@
 //                AvatarUrl = user.AvatarUrl,
 //                AccountId = user.AccountId,
 //                Active = user.IsActive,
-//                Source= user.Location,
+//                Source = user.Location,
 //                UserId = user.Id,
 //                FirstName = user.FirstName,
 //                LastName = user.LastName

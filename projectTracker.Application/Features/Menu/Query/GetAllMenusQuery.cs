@@ -44,9 +44,12 @@ namespace projectTracker.Application.Features.Menu.Query
                     Name = c.Name,
                     Url = c.Url,
                     ParentId = c.ParentId,
-                    Icon = c.Icon
+                    Icon = c.Icon,
+                    Order = c.Order,
+                    RequiredPermission = c.RequiredPrivilege
                 }).ToList(),
                 RequiredPermission = m.RequiredPrivilege,
+                Order = m.Order
             }).ToList();
             return Result.Ok(menuItemDtos);
         }

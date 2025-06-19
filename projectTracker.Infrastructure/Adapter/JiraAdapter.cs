@@ -99,7 +99,11 @@ namespace projectTracker.Infrastructure.Adapter
             var completedStoryPoints = allProjectTasks
                 .Where(t => t.IssueType == "Story" && t.StatusCategory == "Done" && t.StoryPoints.HasValue)
                 .Sum(t => t.StoryPoints ?? 0);
-            var activeBlockers = allProjectTasks.Count(t => t.StatusCategory == "Blocked" || (t.Labels != null && t.Labels.Contains("Blocked", StringComparer.OrdinalIgnoreCase))); // Assuming 'Blocked' label or status category
+            // 4. Blocked tasks
+            var blockedResponse = await _httpClient.GetAsync(
+                $"search?jql=project={projectKey} AND (status = Blocked OR labels = Blocked)&maxResults=0", ct);
+            blockedResponse.EnsureSuccessStatusCode();
+            var blockedData = await blockedResponse.Content.ReadFromJsonAsync<JiraCountResult>(cancellationToken: ct);
             var recentUpdates = allProjectTasks.Count(t => (DateTime.UtcNow - t.UpdatedDate).TotalDays <= 3); // Tasks updated in last 3 days
 
             return new ProgressMetricsDto
@@ -109,7 +113,7 @@ namespace projectTracker.Infrastructure.Adapter
                 OpenIssues = openIssues,
                 TotalStoryPoints = totalStoryPoints,
                 CompletedStoryPoints = completedStoryPoints,
-                ActiveBlockers = activeBlockers,
+                ActiveBlockers = blockedData.Total,
                 RecentUpdates = recentUpdates,
                 LastCalculated = DateTime.UtcNow
             };

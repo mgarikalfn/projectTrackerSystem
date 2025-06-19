@@ -62,7 +62,7 @@ namespace projectTracker.Infrastructure.Sync
                 // Use the Complete domain method, which should set Duration internally
                 syncHistory.Complete(totalTasksCreated, totalTasksUpdated);
 
-                
+
                 await _dbContext.SaveChangesAsync(ct);
 
                 _logger.LogInformation("Full sync completed successfully. Created: {Created}, Updated: {Updated}", totalTasksCreated, totalTasksUpdated);
@@ -71,7 +71,7 @@ namespace projectTracker.Infrastructure.Sync
             {
                 // Use the Fail domain method, which should set Duration internally
                 syncHistory.Fail(ex.Message);
-               
+
                 await _dbContext.SaveChangesAsync(ct);
                 _logger.LogError(ex, "Failed to complete full sync");
                 throw;
@@ -112,7 +112,8 @@ namespace projectTracker.Infrastructure.Sync
                                 AccountId = jiraUser.AccountId,
                                 DisplayName = jiraUser.DisplayName,
                                 AvatarUrl = jiraUser.AvatarUrl,
-                                IsActive = jiraUser.Active
+                                IsActive = jiraUser.Active,
+                                Source = UserSource.Jira // Mark as Jira-synced
                             };
                             _dbContext.Users.Add(user);
                             _logger.LogDebug("Added new user {Email}", jiraUser.Email);
@@ -123,6 +124,7 @@ namespace projectTracker.Infrastructure.Sync
                             user.DisplayName = jiraUser.DisplayName;
                             user.AvatarUrl = jiraUser.AvatarUrl;
                             user.IsActive = jiraUser.Active;
+                            user.Source = UserSource.Jira; // Ensure source is updated if it was manually changed or initially wrong
                             _logger.LogDebug("Updated existing user {Email}", jiraUser.Email);
                         }
                     }
@@ -263,7 +265,21 @@ namespace projectTracker.Infrastructure.Sync
                             _logger.LogDebug("Updated existing project {ProjectKey}", project.Key);
                         }
 
-                        //SyncHistory.LastSynced = DateTime.UtcNow;
+                        // Get and update metrics
+                        var metricsDto = await _adapter.GetProjectMetricsAsync(projectDto.Key, ct);
+                        var metrics = new ProgressMetrics(
+                            totalTasks: metricsDto.TotalTasks,
+                            completedTasks: metricsDto.CompletedTasks,
+                            storyPointsCompleted: metricsDto.CompletedStoryPoints,
+                            storyPointsTotal: metricsDto.TotalStoryPoints,
+                            activeBlockers: metricsDto.ActiveBlockers,
+                            recentUpdates: metricsDto.RecentUpdates);
+
+                        project.UpdateProgressMetrics(metrics);
+
+                        // Calculate and update health
+                        var health = _riskCalculator.Calculate(metricsDto);
+                        project.UpdateHealthMetrics(health);
                     }
                     catch (Exception ex)
                     {
@@ -291,6 +307,7 @@ namespace projectTracker.Infrastructure.Sync
             {
                 var projects = await _dbContext.Projects.ToListAsync(ct);
                 var sprintsInDb = await _dbContext.Sprints.ToListAsync(ct);
+                // Create a map from JiraId to the local Sprint object for efficient lookup
                 var sprintMap = sprintsInDb.ToDictionary(s => s.JiraId);
 
                 foreach (var project in projects)
@@ -311,21 +328,25 @@ namespace projectTracker.Infrastructure.Sync
                             {
                                 existingTasksForProject.TryGetValue(jiraTask.Key, out var task);
 
+                                // Resolve the local Sprint ID (Guid) from the Jira Sprint ID (int)
                                 Guid? localSprintId = null;
                                 if (jiraTask.CurrentSprintJiraId.HasValue && sprintMap.TryGetValue(jiraTask.CurrentSprintJiraId.Value, out var localSprint))
                                 {
-                                    localSprintId = localSprint.Id;
+                                    localSprintId = localSprint.Id; // This is the local GUID ID
                                 }
 
                                 if (task == null)
                                 {
+                                    // Create a new ProjectTask instance
                                     task = ProjectTask.Create(
                                         taskKey: jiraTask.Key,
                                         title: jiraTask.Title,
                                         projectId: project.Id,
-                                        issueType: jiraTask.IssueType ?? "Unknown"
+                                        issueType: jiraTask.IssueType ?? "Unknown",
+                                        sprintId: localSprintId // Pass the local GUID Sprint ID here
                                     );
 
+                                    // Update other details from Jira
                                     task.UpdateFromJira(
                                         title: jiraTask.Title,
                                         description: jiraTask.Description,
@@ -335,11 +356,12 @@ namespace projectTracker.Infrastructure.Sync
                                         dueDate: jiraTask.DueDate,
                                         storyPoints: jiraTask.StoryPoints,
                                         timeEstimateMinutes: jiraTask.TimeEstimateMinutes,
-                                        jiraUpdatedDate: jiraTask.UpdatedDate,
+                                        jiraUpdatedDate: jiraTask.UpdatedDate, // Pass Jira's updated date
                                         issueType: jiraTask.IssueType ?? "Unknown",
                                         epicKey: jiraTask.EpicKey,
                                         parentKey: jiraTask.ParentKey,
-                                        jiraSprintId: jiraTask.CurrentSprintJiraId
+                                        jiraSprintId: jiraTask.CurrentSprintJiraId,
+                                        localSprintId: localSprintId
                                     );
 
                                     _dbContext.Tasks.Add(task);
@@ -348,11 +370,12 @@ namespace projectTracker.Infrastructure.Sync
                                 }
                                 else
                                 {
-                                    var newStatus = TaskStatusMapper.FromJira(jiraTask.Status ?? "Unknown");
-                                    if (task.Status != newStatus)
-                                    {
-                                        task.UpdateDetails(task.Summary, newStatus, task.AssigneeId, DateTime.UtcNow);
-                                    }
+                                    // The `ProjectTask.UpdateDetails` method in your entity is designed for internal changes.
+                                    // When syncing from Jira, you should *always* use `UpdateFromJira`
+                                    // to ensure all Jira-provided fields (including `UpdatedDate`) are refreshed.
+                                    // The check `if (task.Status != newStatus)` should ideally be inside `UpdateFromJira`
+                                    // if you want to track `StatusChangedDate` from Jira's perspective.
+                                    // For simplicity here, we ensure `UpdateFromJira` is called.
 
                                     task.UpdateFromJira(
                                         title: jiraTask.Title,
@@ -363,11 +386,12 @@ namespace projectTracker.Infrastructure.Sync
                                         dueDate: jiraTask.DueDate,
                                         storyPoints: jiraTask.StoryPoints,
                                         timeEstimateMinutes: jiraTask.TimeEstimateMinutes,
-                                        jiraUpdatedDate: jiraTask.UpdatedDate,
+                                        jiraUpdatedDate: jiraTask.UpdatedDate, // Pass Jira's updated date
                                         issueType: jiraTask.IssueType ?? "Unknown",
                                         epicKey: jiraTask.EpicKey,
                                         parentKey: jiraTask.ParentKey,
-                                        jiraSprintId: jiraTask.CurrentSprintJiraId
+                                        jiraSprintId: jiraTask.CurrentSprintJiraId,
+                                        localSprintId: localSprintId
                                     );
 
                                     updatedCount++;

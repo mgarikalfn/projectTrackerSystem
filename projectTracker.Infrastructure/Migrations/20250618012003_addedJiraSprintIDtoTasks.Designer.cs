@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectTracker.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using ProjectTracker.Infrastructure.Data;
 namespace projectTracker.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250618012003_addedJiraSprintIDtoTasks")]
+    partial class addedJiraSprintIDtoTasks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -199,9 +202,6 @@ namespace projectTracker.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("datetimeoffset");
 
-                    b.Property<bool>("MustChangePassword")
-                        .HasColumnType("bit");
-
                     b.Property<string>("NormalizedEmail")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -221,9 +221,6 @@ namespace projectTracker.Infrastructure.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Source")
-                        .HasColumnType("int");
 
                     b.Property<string>("TimeZone")
                         .IsRequired()
@@ -342,9 +339,6 @@ namespace projectTracker.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("AppUserId")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("AssigneeId")
                         .HasColumnType("nvarchar(max)");
 
@@ -407,8 +401,6 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AppUserId");
 
                     b.HasIndex("ProjectId");
 
@@ -709,10 +701,6 @@ namespace projectTracker.Infrastructure.Migrations
 
             modelBuilder.Entity("projectTracker.Domain.Entities.ProjectTask", b =>
                 {
-                    b.HasOne("projectTracker.Domain.Entities.AppUser", null)
-                        .WithMany("AssignedTasks")
-                        .HasForeignKey("AppUserId");
-
                     b.HasOne("projectTracker.Domain.Aggregates.Project", "Project")
                         .WithMany("Tasks")
                         .HasForeignKey("ProjectId")
@@ -787,11 +775,6 @@ namespace projectTracker.Infrastructure.Migrations
                     b.Navigation("SyncHistory");
 
                     b.Navigation("Tasks");
-                });
-
-            modelBuilder.Entity("projectTracker.Domain.Entities.AppUser", b =>
-                {
-                    b.Navigation("AssignedTasks");
                 });
 
             modelBuilder.Entity("projectTracker.Domain.Entities.Board", b =>

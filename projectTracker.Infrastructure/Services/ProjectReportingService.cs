@@ -148,19 +148,17 @@ namespace projectTracker.Infrastructure.Services
                                            .ToDictionary(sg => sg.Key, sg => sg.Count())
                 }).ToList();
 
-            // Recent Activity (This is more complex and depends on SyncHistory for changes or fetching changelog)
-            // For a simple report, you might just show tasks updated recently within the sprint.
-            // For true changelog, you'd need to fetch SyncHistory records, or potentially call JiraAdapter.GetIssueChangelogAsync
-            // for each task, which is very inefficient for a report.
+            // Example in your ProjectReportingService (or similar report generation logic)
+            // Make sure tasksInSprint is fetched including the UpdatedDate property.
             var recentActivities = tasksInSprint
-                .OrderByDescending(t => t.UpdatedDate)
-                .Take(5) // Get 5 most recently updated tasks
+                .OrderByDescending(t => t.UpdatedDate) // Use ProjectTask.UpdatedDate for Jira's last update
+                .Take(5)
                 .Select(t => new RecentActivityItemDto
                 {
                     TaskKey = t.Key,
-                    Description = $"{t.IssueType} {t.Key} updated (Status: {t.Status}, Assignee: {t.AssigneeName})", // Simplified
-                    ChangedBy = t.AssigneeName, // Or get from actual changelog if stored
-                    Timestamp = t.UpdatedDate
+                    Description = $"{t.IssueType} {t.Key} updated (Status: {t.Status}, Assignee: {t.AssigneeName})",
+                    ChangedBy = t.AssigneeName, // This is an approximation; true changelog requires more data
+                    Timestamp = t.UpdatedDate // This will be Jira's updated timestamp
                 }).ToList();
 
 
