@@ -206,14 +206,17 @@ namespace projectTracker.Infrastructure.Adapter
             return await GetProjectTasksByJqlAsync(jql,ct, fields);
         }
 
-        public async Task<List<TaskDto>> GetProjectTasksByJqlAsync(string jql,  CancellationToken ct = default, string? fields = null)
+        public async Task<List<TaskDto>> GetProjectTasksByJqlAsync(string jql, CancellationToken ct = default, string? fields = null)
         {
-            // Default fields if not provided
+            // Dynamically construct fields string including custom fields for story points, epic link, and sprints
+            // Note the two extra 't' and 'nt' at the end of the fields string in your original snippet.
+            // I've removed them assuming they were typos: "sprintCustomFieldId}t" + "nt"
             if (string.IsNullOrEmpty(fields))
             {
                 fields = $"key,summary,description,status,assignee,created,updated,duedate," +
-                        $"{_storyPointsCustomFieldId},issuetype,parent, {_epicLinkCustomFieldId},timetracking,labels,priority, {_sprintCustomFieldId}t" +
-                        $"nt";
+                         $"{_storyPointsCustomFieldId},issuetype,parent," +
+                         $"{_epicLinkCustomFieldId},timetracking,labels,priority," +
+                         $"{_sprintCustomFieldId}"; // Removed extra 't' and 'nt'
             }
 
             var tasks = new List<TaskDto>();
@@ -225,6 +228,7 @@ namespace projectTracker.Infrastructure.Adapter
             {
                 try
                 {
+                    _logger.LogDebug("Fetching tasks with JQL: {Jql} from startAt: {StartAt}", jql, startAt);
                     var response = await _httpClient.GetAsync(
                         $"search?jql={Uri.EscapeDataString(jql)}&fields={Uri.EscapeDataString(fields)}&startAt={startAt}&maxResults={maxResults}",
                         ct);
@@ -232,7 +236,11 @@ namespace projectTracker.Infrastructure.Adapter
                     response.EnsureSuccessStatusCode();
 
                     var jiraData = await response.Content.ReadFromJsonAsync<JiraSearchResult>(_jsonSerializerOptions, ct);
-                    if (jiraData == null || jiraData.Issues == null || jiraData.Issues.Count == 0) break;
+                    if (jiraData == null || jiraData.Issues == null || !jiraData.Issues.Any()) // Use Any() for collection check
+                    {
+                        _logger.LogInformation("No more issues found for JQL: {Jql} from startAt: {StartAt}. Breaking pagination loop.", jql, startAt);
+                        break;
+                    }
 
                     tasks.AddRange(jiraData.Issues.Select(issue =>
                     {
@@ -248,47 +256,78 @@ namespace projectTracker.Infrastructure.Adapter
                             CreatedDate = issue.Fields.Created,
                             UpdatedDate = issue.Fields.Updated,
                             DueDate = issue.Fields.DueDate,
-                            StoryPoints = issue.Fields.StoryPoints,
+                            StoryPoints = issue.Fields.StoryPoints, // Assuming direct mapping for custom field
                             TimeEstimateMinutes = issue.Fields.TimeTracking?.OriginalEstimateSeconds != null
                                                   ? (int?)(issue.Fields.TimeTracking.OriginalEstimateSeconds / 60)
                                                   : null,
                             IssueType = issue.Fields.IssueType?.Name,
-                            EpicKey = issue.Fields.Epic, // This assumes 'epic' is directly available if linked
+                            EpicKey = issue.Fields.Epic, // Assuming direct mapping for custom field
                             ParentKey = issue.Fields.Parent?.Key,
                             Labels = issue.Fields.Labels,
                             Priority = issue.Fields.Priority?.Name,
                         };
 
-                        // Handle sprint field (it's often an array)
-                        var currentSprint = issue.Fields.Sprints?.FirstOrDefault(s => s.State == "active");
-                        if (currentSprint != null)
+                        // --- FIX: Logic to select the "current" sprint for the task ---
+                        // Jira's _sprintCustomFieldId often returns an array of sprints the issue has been in.
+                        // We need to pick the most relevant one for its 'current' sprint.
+                        if (issue.Fields.Sprints != null && issue.Fields.Sprints.Any())
                         {
-                            taskDto.CurrentSprintJiraId = currentSprint.Id;
-                            taskDto.CurrentSprintName = currentSprint.Name;
-                            taskDto.CurrentSprintState = currentSprint.State;
+                            // Priority order: Active > Future > Most Recently Closed
+                            var relevantSprint = issue.Fields.Sprints
+                                .OrderByDescending(s => s.State == "active") // Active first
+                                .ThenByDescending(s => s.State == "future")  // Then future
+                                .ThenByDescending(s => s.CompleteDate ?? DateTime.MinValue) // Then most recently completed
+                                .FirstOrDefault();
+
+                            if (relevantSprint != null)
+                            {
+                                taskDto.CurrentSprintJiraId = relevantSprint.Id;
+                                taskDto.CurrentSprintName = relevantSprint.Name;
+                                taskDto.CurrentSprintState = relevantSprint.State;
+                                _logger.LogTrace("Task {TaskKey} assigned to local Sprint ID {SprintId} (Jira ID: {JiraSprintId}, State: {State})",
+                                    issue.Key, relevantSprint.Id, relevantSprint.Id, relevantSprint.State);
+                            }
+                            else
+                            {
+                                _logger.LogTrace("Task {TaskKey} has sprints, but no relevant sprint found after ordering.", issue.Key);
+                            }
                         }
+                        else
+                        {
+                            _logger.LogTrace("Task {TaskKey} has no associated sprints from Jira API.", issue.Key);
+                        }
+                        // --- END FIX ---
 
                         return taskDto;
                     }));
 
                     startAt += jiraData.Issues.Count;
-                    if (startAt >= jiraData.Total) break; // All issues fetched
+                    if (startAt >= jiraData.Total) // All issues fetched if current startAt >= total available
+                    {
+                        _logger.LogInformation("All {Total} issues for JQL: {Jql} fetched. Breaking pagination loop.", jiraData.Total, jql);
+                        break;
+                    }
                     await Task.Delay(200, ct); // Basic rate limit adherence
                 }
                 catch (HttpRequestException ex)
                 {
-                    _logger.LogError(ex, "HTTP request failed for JQL search: {Jql} at startAt {StartAt}", jql, startAt);
+                    _logger.LogError(ex, "HTTP request failed for JQL search: {Jql} at startAt {StartAt}. Response: {ResponseContent}", jql, startAt, ex.Message);
                     throw;
                 }
                 catch (JsonException ex)
                 {
-                    _logger.LogError(ex, "JSON deserialization failed for JQL search: {Jql} at startAt {StartAt}", jql, startAt);
+                    _logger.LogError(ex, "JSON deserialization failed for JQL search: {Jql} at startAt {StartAt}. Raw JSON: {RawJson}", jql, startAt, "Check logs for raw response if available"); // Cannot log raw JSON here easily
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "An unexpected error occurred during JQL search: {Jql} at startAt {StartAt}", jql, startAt);
                     throw;
                 }
             }
+            _logger.LogInformation("Finished fetching tasks for JQL: {Jql}. Total tasks retrieved: {TotalTasks}", jql, tasks.Count);
             return tasks;
         }
-
         // --- New Methods for Jira Agile API ---
 
         public async Task<List<JiraBoardDto>> GetBoardsAsync(CancellationToken ct)

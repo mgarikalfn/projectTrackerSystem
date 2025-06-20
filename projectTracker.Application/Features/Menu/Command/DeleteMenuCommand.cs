@@ -26,15 +26,27 @@ namespace projectTracker.Application.Features.Menu.Command
 
         public async Task<Result> Handle(DeleteMenuCommand request, CancellationToken cancellationToken)
         {
+            // Step 1: Find the parent menu item
             var menuItem = await _menuRepository.FindAsync(m => m.Id == request.Id);
             if (menuItem == null)
                 return Result.Fail("Menu item not found");
 
-            // Soft delete (or use _menuRepository.DeleteAsync for hard delete)
+            // Step 2: Find child menu items
+            var childMenus = await _menuRepository.GetWhereAsync(m => m.ParentId == request.Id);
+
+            // Step 3: If children exist, delete or deactivate them
+            foreach (var child in childMenus)
+            {
+                child.IsActive = false;
+                await _menuRepository.DeleteAsync(child);
+            }
+
+            // Step 4: Delete or deactivate the parent item
             menuItem.IsActive = false;
-            await _menuRepository.UpdateAsync(menuItem);
+            await _menuRepository.DeleteAsync(menuItem);
 
             return Result.Ok();
         }
+
     }
 }

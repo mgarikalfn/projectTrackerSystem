@@ -12,7 +12,7 @@ namespace projectTracker.Application.Dto.Project
         {
             public string ProjectKey { get; set; } = string.Empty;
             public string ProjectName { get; set; } = string.Empty;
-            public List<SprintReportDto> Sprints { get; set; } = new List<SprintReportDto>();
+            public List<SprintListItemDto> Sprints { get; set; } = new List<SprintListItemDto>();
         }
 
        
@@ -49,7 +49,8 @@ namespace projectTracker.Application.Dto.Project
 
             // Recent Activity (simplified for report summary; detailed log is separate)
             public List<RecentActivityItemDto> RecentActivities { get; set; } = new List<RecentActivityItemDto>();
-        }
+            public IEnumerable<TaskDto> TasksInSprint { get; set; } = new List<TaskDto>();
+    }
 
         public class DeveloperWorkloadDto
         {
@@ -67,5 +68,13 @@ namespace projectTracker.Application.Dto.Project
             public string? ChangedBy { get; set; }
             public DateTime Timestamp { get; set; }
         }
-    
+
+
+    public class SprintListItemDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty; // e.g., "active", "closed", "future"
+    }
+
 }

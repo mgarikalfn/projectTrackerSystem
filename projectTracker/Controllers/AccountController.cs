@@ -61,7 +61,7 @@ namespace projectTracker.Api.Controllers
         }
 
         // Conceptual Login API Endpoint (e.g., in AccountController)
-        [HttpPost("api/account/login")]
+        [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
             var result = await _signInManager.PasswordSignInAsync(request.Email, request.Password, request.RememberMe, lockoutOnFailure: false);

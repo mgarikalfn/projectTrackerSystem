@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectTracker.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using ProjectTracker.Infrastructure.Data;
 namespace projectTracker.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250619073457_addedPrioritytotasks")]
+    partial class addedPrioritytotasks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -262,17 +265,11 @@ namespace projectTracker.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProjectId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
 
                     b.ToTable("Boards");
                 });
@@ -457,6 +454,7 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Goal")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("JiraId")
@@ -704,17 +702,6 @@ namespace projectTracker.Infrastructure.Migrations
 
                     b.Navigation("Progress")
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("projectTracker.Domain.Entities.Board", b =>
-                {
-                    b.HasOne("projectTracker.Domain.Aggregates.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("projectTracker.Domain.Entities.MenuItem", b =>

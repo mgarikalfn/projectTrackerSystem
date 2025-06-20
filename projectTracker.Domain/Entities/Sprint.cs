@@ -16,7 +16,7 @@ namespace projectTracker.Domain.Entities
         public DateTime? StartDate { get; private set; }
         public DateTime? EndDate { get; private set; }
         public DateTime? CompleteDate { get; private set; }
-        public string Goal { get; private set; } = string.Empty; // Sprint goal or objective
+        public string? Goal { get; private set; } = string.Empty; // Sprint goal or objective
 
         // Navigation property if you want to link back to the board
         public virtual Board Board { get; private set; } = default!;
@@ -45,7 +45,7 @@ namespace projectTracker.Domain.Entities
             StartDate = startDate;
             EndDate = endDate;
             CompleteDate = completeDate;
-            Goal = goal;
+            Goal = goal ?? string.Empty;
             // You might also add logic here to update a LastUpdated timestamp if desired
         }
 
@@ -59,7 +59,7 @@ namespace projectTracker.Domain.Entities
             StartDate = startDate;
             EndDate = endDate;
             CompleteDate = completeDate;
-            Goal = goal;
+            Goal = goal ?? string.Empty;
         }
     }
 }

@@ -20,6 +20,7 @@ namespace projectTracker.Domain.Entities
         public string? AssigneeId { get; private set; } // Can be null if unassigned
         public string? AssigneeName { get; private set; } // Can be null if unassigned
         public DateTime Updated { get; private set; } // <<-- This field is your local timestamp, currently only updated on status change via UpdateDetails
+        public string? Priority { get; private set; }
 
         // Foreign Key to Project Aggregate
         public string ProjectId { get; private set; }
@@ -74,7 +75,8 @@ namespace projectTracker.Domain.Entities
             string epicKey,
             string parentKey,
             int? jiraSprintId,
-            Guid? localSprintId
+            Guid? localSprintId,
+            string? priority
         )
         {
             Summary = title;
@@ -104,6 +106,7 @@ namespace projectTracker.Domain.Entities
             ParentKey = parentKey;
             JiraSprintId = jiraSprintId;
             SprintId = localSprintId;
+            this.Priority = priority;
 
             // Updated is *not* set here, maintaining its "status change" behavior as per your design
         }
@@ -127,12 +130,15 @@ namespace projectTracker.Domain.Entities
             SprintId = sprintId;
         }
 
-        // --- Factory Method ---
+        // Fix for CS1737: Optional parameters must appear after all required parameters
         public static ProjectTask Create(
             string taskKey,
             string title,
             string projectId,
-            string issueType = "Task",
+            DateTime jiraCreatedDate,
+            DateTime jiraUpdatedDate,
+            string issueType = "Task", // Moved optional parameters after required ones
+            string? priority = null,
             Guid? sprintId = null)
         {
             return new ProjectTask
@@ -143,11 +149,12 @@ namespace projectTracker.Domain.Entities
                 ProjectId = projectId,
                 IssueType = issueType,
                 Status = TaskStatus.ToDo,
-                CreatedDate = DateTime.UtcNow,
-                UpdatedDate = DateTime.UtcNow, // Initialize with current time, will be overwritten by Jira's in UpdateFromJira
+                CreatedDate = jiraCreatedDate, // Use Jira's creation date
+                UpdatedDate = jiraUpdatedDate, // Use Jira's updated date
                 StatusChangedDate = DateTime.UtcNow,
-                Updated = DateTime.UtcNow, // Local creation timestamp
+                Updated = DateTime.UtcNow,
                 SprintId = sprintId,
+                Priority = priority // Set the new property
             };
         }
     }

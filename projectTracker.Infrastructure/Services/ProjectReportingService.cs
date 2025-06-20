@@ -1,7 +1,9 @@
 ﻿
 
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using projectTracker.Application.Dto;
 using projectTracker.Application.Dto.Project;
 using projectTracker.Application.Interfaces;
 using projectTracker.Domain.Entities; 
@@ -24,8 +26,7 @@ namespace projectTracker.Infrastructure.Services
         public async Task<ProjectSprintOverviewDto?> GetProjectSprintOverviewAsync(string projectKey, CancellationToken ct)
         {
             var project = await _dbContext.Projects
-                                          .Include(p => p.Tasks) // Include tasks for calculations
-                                          .FirstOrDefaultAsync(p => p.Key == projectKey, ct);
+                                          .FirstOrDefaultAsync(p => p.Key == projectKey, ct); // Removed .Include(p => p.Tasks) as it's not needed for this overview
 
             if (project == null)
             {
@@ -33,17 +34,30 @@ namespace projectTracker.Infrastructure.Services
                 return null;
             }
 
-            var allSprints = await GetAllSprintsForProjectAsync(projectKey, ct);
+            // Fetch only the necessary sprint details (Id, Name, State) for the overview
+            // Filter by the project's internal ID to ensure correct association
+            var sprintsList = await _dbContext.Sprints
+                .Where(s => s.Board!.ProjectId == project.Id) // Filter sprints by the resolved project ID
+                .OrderByDescending(s => s.StartDate) // Order to easily find the most recent/active
+                .Select(s => new SprintListItemDto // Project to the simpler DTO
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    State = s.State.ToString() // Convert enum to string for the DTO
+                })
+                .ToListAsync(ct);
 
             var overview = new ProjectSprintOverviewDto
             {
                 ProjectKey = project.Key,
                 ProjectName = project.Name,
-                Sprints = allSprints // Already detailed SprintReportDto
+                Sprints = sprintsList // Assign the list of lighter sprint DTOs
             };
 
+            _logger.LogInformation("Generated project sprint overview for project {ProjectKey} with {SprintCount} sprints.", projectKey, sprintsList.Count);
             return overview;
         }
+    
 
         public async Task<List<SprintReportDto>> GetAllSprintsForProjectAsync(string projectKey, CancellationToken ct)
         {
@@ -171,6 +185,30 @@ namespace projectTracker.Infrastructure.Services
             var tasksMovedFromPreviousSprint = 0;
 
 
+            var tasksInSprintDtos = tasksInSprint.Select(t => new TaskDto
+            {
+                Key = t.Key,
+                Title = t.Summary,
+                Description = t.Description,
+                Status = t.Status.ToString(),
+                StatusCategory = GetStatusCategory(t.Status),
+                Priority= t.Priority,
+                AssigneeId = t.AssigneeId,
+                AssigneeName = t.AssigneeName,
+                CreatedDate = t.CreatedDate,
+                UpdatedDate = t.UpdatedDate,
+                DueDate = t.DueDate,
+                StoryPoints = t.StoryPoints,
+                TimeEstimateMinutes = t.TimeEstimateMinutes,
+                IssueType = t.IssueType,
+                EpicKey = t.EpicKey,
+                ParentKey = t.ParentKey,
+                CurrentSprintJiraId = t.JiraSprintId,
+                CurrentSprintName = t.Sprint?.Name // Use the included Sprint navigation property
+            }).ToList();
+
+
+
             return new SprintReportDto
             {
                 Id = sprint.Id,
@@ -197,8 +235,25 @@ namespace projectTracker.Infrastructure.Services
                 TaskStatusCounts = taskStatusCounts,
                 IssueTypeCounts = issueTypeCounts,
                 DeveloperWorkloads = developerWorkloads,
-                RecentActivities = recentActivities
+                RecentActivities = recentActivities,
+                TasksInSprint = tasksInSprintDtos
+            };
+        }
+       
+        private static string GetStatusCategory(TaskStatus status)
+        {
+            
+            return status switch
+            {
+                TaskStatus.Done => "Done",
+                TaskStatus.InProgress => "In Progress",
+                TaskStatus.ToDo => "To Do",
+                TaskStatus.Blocked => "Blocked",
+                // Add other TaskStatus values as needed
+                _ => "Other"
             };
         }
     }
+
+
 }

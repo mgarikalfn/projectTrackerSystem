@@ -206,9 +206,29 @@ namespace projectTracker.Application.Dto
         [JsonPropertyName("type")] // e.g., "scrum", "kanban"
         public string Type { get; set; } = string.Empty;
 
-        // Optionally, include project relation if needed
-        // [JsonPropertyName("location")]
-        // public JiraBoardLocationDto? Location { get; set; }
+        // REMOVE THIS LINE: [JsonPropertyName("projectKey")] // <--- This was the problem
+        // REMOVE THIS LINE: public string ProjectKey { get; set; } = string.Empty;
+
+        [JsonPropertyName("location")] // ADD THIS LINE (or uncomment if you had it)
+        public JiraBoardLocationDto? Location { get; set; } // Make it nullable as location might not always be present
+    }
+
+    public class JiraBoardLocationDto
+    {
+        [JsonPropertyName("projectId")]
+        public long ProjectId { get; set; } // Jira Project ID, often a long
+
+        [JsonPropertyName("projectKey")]
+        public string ProjectKey { get; set; } = string.Empty; // This is the crucial field
+
+        [JsonPropertyName("projectName")]
+        public string ProjectName { get; set; } = string.Empty;
+
+        [JsonPropertyName("displayName")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        [JsonPropertyName("projectType")]
+        public string ProjectType { get; set; } = string.Empty;
     }
 
     // For /rest/agile/1.0/board/{boardId}/sprint
