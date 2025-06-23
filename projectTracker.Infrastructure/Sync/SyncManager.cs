@@ -466,10 +466,21 @@ namespace projectTracker.Infrastructure.Sync
             try
             {
                 var projects = await _dbContext.Projects.ToListAsync(ct);
-                // Pre-fetch all sprints with AsNoTracking to build the map efficiently
+
+                // Pre-fetch all sprints for efficient lookup
                 var sprintsInDb = await _dbContext.Sprints.AsNoTracking().ToListAsync(ct);
                 var sprintMap = sprintsInDb.ToDictionary(s => s.JiraId);
                 _logger.LogDebug("Found {SprintCount} sprints in local DB for task linking.", sprintMap.Count);
+
+                // --- NEW/MODIFIED: Pre-fetch all AppUsers by AccountId for efficient lookup ---
+                // Only fetch users that have an AccountId (Jira-sourced)
+                var usersByAccountId = await _dbContext.Users
+                                                    .Where(u => u.AccountId != null && u.Source == UserSource.Jira)
+                                                    .AsNoTracking()
+                                                    .ToDictionaryAsync(u => u.AccountId!, ct); // Use AccountId as key
+                _logger.LogDebug("Found {UserCount} Jira-sourced users in local DB for assignee linking.", usersByAccountId.Count);
+                // --- END NEW/MODIFIED ---
+
 
                 if (!projects.Any())
                 {
@@ -491,10 +502,10 @@ namespace projectTracker.Infrastructure.Sync
                             continue;
                         }
 
-                        // Fetch existing tasks for this specific project only
+                        // Fetch existing tasks for this specific project only (AsNoTracking is good for read)
                         var existingTasksForProject = await _dbContext.Tasks
                             .Where(t => t.ProjectId == project.Id)
-                            .AsNoTracking() // Use AsNoTracking for initial fetch
+                            .AsNoTracking()
                             .ToDictionaryAsync(t => t.Key, ct);
 
                         foreach (var jiraTask in jiraTasks)
@@ -502,7 +513,45 @@ namespace projectTracker.Infrastructure.Sync
                             _logger.LogDebug("Processing Jira Task: Key={TaskKey}, Project={ProjectKey}", jiraTask.Key, project.Key);
                             try
                             {
-                                existingTasksForProject.TryGetValue(jiraTask.Key, out var task);
+                                // IMPORTANT: Use LoadByIdAsync or another method to get a TRACKED entity for updates
+                                // If existingTasksForProject was AsNoTracking, you need to re-attach or re-fetch.
+                                // For simplicity, I'll fetch the tracked entity here if it exists.
+                                ProjectTask? task = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Key == jiraTask.Key && t.ProjectId == project.Id, ct);
+
+                                // --- NEW: Resolve the local AppUser ID for the assignee ---
+                                AppUser? resolvedAssignee = null;
+                                if (!string.IsNullOrEmpty(jiraTask.AssigneeId))
+                                {
+                                    if (usersByAccountId.TryGetValue(jiraTask.AssigneeId, out var existingUser))
+                                    {
+                                        resolvedAssignee = existingUser;
+                                        _logger.LogDebug("Resolved assignee {JiraAccountId} to local user ID {LocalUserId}", jiraTask.AssigneeId, resolvedAssignee.Id);
+                                    }
+                                    else
+                                    {
+                                        // User not found by AccountId, create a new Jira-sourced user
+                                        _logger.LogWarning("Jira assignee {JiraAccountId} not found locally. Creating new user.", jiraTask.AssigneeId);
+                                        resolvedAssignee = new AppUser
+                                        {
+                                            Id = Guid.NewGuid().ToString(), // Generate a new local ID
+                                            AccountId = jiraTask.AssigneeId,
+                                            DisplayName = jiraTask.AssigneeName ?? jiraTask.AssigneeId,
+                                            FirstName = "", // Populate as much as possible, defaults if not available
+                                            LastName = "",
+                                           // Email = jiraTask., // Assuming JiraTaskData has Email
+                                           // UserName = jiraTask.AssigneeEmail ?? jiraTask.AssigneeAccountId,
+                                            Source = UserSource.Jira, // Mark as Jira-sourced
+                                            IsActive = true,
+                                            TimeZone = "Etc/UTC", // Sensible default
+                                            Location = "Unknown", // Sensible default
+                                            // Other properties...
+                                        };
+                                        _dbContext.Users.Add(resolvedAssignee);
+                                        // Add to map so it's available for subsequent tasks in this sync run
+                                        usersByAccountId.Add(resolvedAssignee.AccountId!, resolvedAssignee);
+                                    }
+                                }
+                                // --- END NEW ---
 
                                 // Resolve the local Sprint ID (Guid) from the Jira Sprint ID (int)
                                 Guid? localSprintId = null;
@@ -510,7 +559,7 @@ namespace projectTracker.Infrastructure.Sync
                                 {
                                     if (sprintMap.TryGetValue(jiraTask.CurrentSprintJiraId.Value, out var localSprint))
                                     {
-                                        localSprintId = localSprint.Id; // This is the local GUID ID
+                                        localSprintId = localSprint.Id;
                                         _logger.LogDebug("Resolved local Sprint ID {LocalSprintId} for Jira Sprint ID {JiraSprintId}", localSprintId, jiraTask.CurrentSprintJiraId.Value);
                                     }
                                     else
@@ -535,15 +584,15 @@ namespace projectTracker.Infrastructure.Sync
                                         jiraCreatedDate: jiraTask.CreatedDate,
                                         jiraUpdatedDate: jiraTask.UpdatedDate,
                                         priority: jiraTask.Priority,
-                                        sprintId: localSprintId // Pass the local GUID Sprint ID here
+                                        sprintId: localSprintId
                                     );
 
-                                    // Ensure all fields are updated
+                                    // Ensure all fields are updated using UpdateFromJira (signature unchanged)
                                     task.UpdateFromJira(
                                         title: jiraTask.Title,
                                         description: jiraTask.Description,
                                         jiraStatusName: jiraTask.Status ?? "Unknown",
-                                        assigneeAccountId: jiraTask.AssigneeId,
+                                        assigneeAccountId: jiraTask.AssigneeId, // Still passing Jira Account ID here
                                         assigneeDisplayName: jiraTask.AssigneeName,
                                         dueDate: jiraTask.DueDate,
                                         storyPoints: jiraTask.StoryPoints,
@@ -553,24 +602,32 @@ namespace projectTracker.Infrastructure.Sync
                                         epicKey: jiraTask.EpicKey,
                                         parentKey: jiraTask.ParentKey,
                                         priority: jiraTask.Priority,
+                                        //labels: jiraTask.Labels, // Pass labels
                                         jiraSprintId: jiraTask.CurrentSprintJiraId,
                                         localSprintId: localSprintId
+                                        //currentSprintName: jiraTask.CurrentSprintName, // Pass current sprint name
+                                       // currentSprintState: jiraTask.CurrentSprintState // Pass current sprint state
                                     );
+
+                                    // --- NEW: Call SetAssigneeUser after UpdateFromJira ---
+                                    task.SetAssigneeUser(resolvedAssignee?.Id, resolvedAssignee?.DisplayName);
+                                    // --- END NEW ---
 
                                     _dbContext.Tasks.Add(task);
                                     createdCount++;
-                                    _logger.LogDebug("Added new task {TaskKey} for project {ProjectKey}. SprintId: {SprintId}", jiraTask.Key, project.Key, localSprintId);
+                                    _logger.LogDebug("Added new task {TaskKey} for project {ProjectKey}. SprintId: {SprintId}, AssigneeId: {AssigneeId}", jiraTask.Key, project.Key, localSprintId, resolvedAssignee?.Id);
                                 }
                                 else
                                 {
-                                    // The `ProjectTask.UpdateDetails` method in your entity is designed for internal changes.
-                                    // When syncing from Jira, you should *always* use `UpdateFromJira`
-                                    // to ensure all Jira-provided fields (including `UpdatedDate`) are refreshed.
+                                    // Update existing task
+                                    // Make sure it's a tracked entity (if it was from existingTasksForProject.AsNoTracking(), it won't be)
+                                    // The FirstOrDefaultAsync above handles this.
+
                                     task.UpdateFromJira(
                                         title: jiraTask.Title,
                                         description: jiraTask.Description,
                                         jiraStatusName: jiraTask.Status ?? "Unknown",
-                                        assigneeAccountId: jiraTask.AssigneeId,
+                                        assigneeAccountId: jiraTask.AssigneeId, // Still passing Jira Account ID here
                                         assigneeDisplayName: jiraTask.AssigneeName,
                                         dueDate: jiraTask.DueDate,
                                         storyPoints: jiraTask.StoryPoints,
@@ -580,12 +637,20 @@ namespace projectTracker.Infrastructure.Sync
                                         epicKey: jiraTask.EpicKey,
                                         parentKey: jiraTask.ParentKey,
                                         priority: jiraTask.Priority,
+                                      //  labels: jiraTask.Labels, // Pass labels
                                         jiraSprintId: jiraTask.CurrentSprintJiraId,
                                         localSprintId: localSprintId
+                                       // currentSprintName: jiraTask.CurrentSprintName,
+                                       // currentSprintState: jiraTask.CurrentSprintState
                                     );
-                                    _dbContext.Tasks.Update(task); // Ensure EF Core tracks it as modified if you used AsNoTracking
+
+                                    // --- NEW: Call SetAssigneeUser after UpdateFromJira ---
+                                    task.SetAssigneeUser(resolvedAssignee?.Id, resolvedAssignee?.DisplayName);
+                                    // --- END NEW ---
+
+                                    // _dbContext.Tasks.Update(task); // Not strictly necessary if 'task' is already tracked
                                     updatedCount++;
-                                    _logger.LogDebug("Updated existing task {TaskKey} for project {ProjectKey}. SprintId: {SprintId}", jiraTask.Key, project.Key, localSprintId);
+                                    _logger.LogDebug("Updated existing task {TaskKey} for project {ProjectKey}. SprintId: {SprintId}, AssigneeId: {AssigneeId}", jiraTask.Key, project.Key, localSprintId, resolvedAssignee?.Id);
                                 }
                             }
                             catch (Exception ex)
@@ -600,7 +665,9 @@ namespace projectTracker.Infrastructure.Sync
 
                         foreach (var keyToRemove in tasksToRemove)
                         {
-                            if (existingTasksForProject.TryGetValue(keyToRemove, out var taskToDelete))
+                            // Need to load the tracked entity to remove it
+                            var taskToDelete = await _dbContext.Tasks.FirstOrDefaultAsync(t => t.Key == keyToRemove && t.ProjectId == project.Id, ct);
+                            if (taskToDelete != null)
                             {
                                 _dbContext.Tasks.Remove(taskToDelete);
                                 _logger.LogDebug("Removed task {TaskKey} from DB (no longer in Jira for project {ProjectKey})", keyToRemove, project.Key);

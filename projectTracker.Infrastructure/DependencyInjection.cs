@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<MenuService>();
         services.AddScoped<IProjectReportingService, ProjectReportingService>();
+        services.AddScoped<UserReportService>();
 
         return services;
     }

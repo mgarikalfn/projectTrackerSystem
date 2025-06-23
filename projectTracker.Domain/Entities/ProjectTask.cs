@@ -2,7 +2,9 @@
 using projectTracker.Domain.Enums;
 using projectTracker.Domain.Common;
 using System;
-using TaskStatus = projectTracker.Domain.Enums.TaskStatus; // Alias for clarity if needed
+using TaskStatus = projectTracker.Domain.Enums.TaskStatus;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema; // Alias for clarity if needed
 
 namespace projectTracker.Domain.Entities
 {
@@ -17,8 +19,7 @@ namespace projectTracker.Domain.Entities
         public DateTime? DueDate { get; private set; }
         public DateTime CreatedDate { get; private set; }
         public DateTime UpdatedDate { get; private set; } // <<-- This field is now correctly storing Jira's 'updated' field
-        public string? AssigneeId { get; private set; } // Can be null if unassigned
-        public string? AssigneeName { get; private set; } // Can be null if unassigned
+       
         public DateTime Updated { get; private set; } // <<-- This field is your local timestamp, currently only updated on status change via UpdateDetails
         public string? Priority { get; private set; }
 
@@ -26,15 +27,30 @@ namespace projectTracker.Domain.Entities
         public string ProjectId { get; private set; }
         public virtual Project Project { get; private set; } = default!; // Navigation property
 
+        [StringLength(450)] // Match AccountId length in AppUser
+        [ForeignKey("Assignee")] // This tells EF that AssigneeId is the FK for the Assignee navigation property
+        public string? AssigneeId { get; private set; } // Stores Jira user ID
+
+        public virtual AppUser? Assignee { get; private set; } // Navigation property to AppUser
+
+        [StringLength(100)] // Example length for DisplayName
+        public string? AssigneeName { get; private set; } // Stored for convenience
+
+
         // --- New Fields for Issue Types and Hierarchy ---
         public string IssueType { get; private set; } = string.Empty; // e.g., "Story", "Bug", "Task", "Epic", "Sub-task"
         public string? EpicKey { get; private set; } // If this task is part of an Epic, store the Epic's Jira Key
         public string? ParentKey { get; private set; } // If this task is a Sub-task, store its parent task's Jira Key
 
         // --- New Fields for Sprint Relationship ---
-        public Guid? SprintId { get; private set; } // Foreign Key to the local Sprint entity
-        public virtual Sprint? Sprint { get; private set; } // Navigation property (assuming Sprint is an Entity)
+        // Sprint Relationship
+        public Guid? SprintId { get; private set; }
+        [ForeignKey("SprintId")] // Associates SprintId property with the navigation property
+        public virtual Sprint? Sprint { get; private set; }
+
         public int? JiraSprintId { get; private set; }
+        public string? CurrentSprintName { get; private set; }
+        public string? CurrentSprintState { get; private set; }
 
         // Metrics (StoryPoints is nullable, as not all IssueTypes have them)
         public decimal? StoryPoints { get; private set; }
@@ -92,8 +108,8 @@ namespace projectTracker.Domain.Entities
             // Always store the Jira status name for reference
             // JiraStatusName = jiraStatusName; // <--- Assuming you have a JiraStatusName property, it's missing in this provided ProjectTask snippet
 
-            AssigneeId = assigneeAccountId;
-            AssigneeName = assigneeDisplayName;
+            //AssigneeId = assigneeAccountId;
+            //AssigneeName = assigneeDisplayName;
             DueDate = dueDate;
             StoryPoints = storyPoints;
             TimeEstimateMinutes = timeEstimateMinutes;
@@ -120,7 +136,7 @@ namespace projectTracker.Domain.Entities
                 StatusChangedDate = DateTime.UtcNow;
             }
             Status = status;
-            AssigneeId = assigneeId;
+           // AssigneeId = assigneeId;
             Updated = updated; // This one explicitly updates the 'Updated' field
         }
 
@@ -157,7 +173,16 @@ namespace projectTracker.Domain.Entities
                 Priority = priority // Set the new property
             };
         }
+
+        // New method to set the resolved AppUser.Id and DisplayName on the Task
+        public void SetAssigneeUser(string? appUserId, string? assigneeDisplayName)
+        {
+            AssigneeId = appUserId;       // This now stores AppUser.Id
+            AssigneeName = assigneeDisplayName;
+        }
     }
+
+
 
     // TaskStatusMapper remains the same
     public static class TaskStatusMapper

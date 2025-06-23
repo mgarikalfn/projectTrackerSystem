@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using projectTracker.Domain.Aggregates;
 using projectTracker.Domain.Entities;
 using projectTracker.Domain.Enums;
@@ -131,6 +132,62 @@ namespace ProjectTracker.Infrastructure.Data
                 .HasOne(rp => rp.Permission)
                 .WithMany(p => p.RolePermissions)
                 .HasForeignKey(rp => rp.PermissionId);
+
+            // AppUser Configuration:
+            modelBuilder.Entity<AppUser>(entity =>
+            {
+                // AccountId: No longer a principal key. It's just a regular column.
+                // Make it nullable in DB, and set length. No unique index needed for FK.
+                entity.Property(u => u.AccountId)
+                      .IsRequired(false) // Allow NULL in DB
+                      .HasMaxLength(450);
+
+                // Add unique index on AccountId if you still want to enforce uniqueness
+                // for lookups (e.g., preventing duplicate Jira Account IDs).
+                // If you *do* want it unique for non-nulls:
+                entity.HasIndex(u => u.AccountId)
+                      .IsUnique()
+                      .HasFilter("[AccountId] IS NOT NULL"); // Allows multiple NULLs, unique for non-NULLs
+
+                // Ensure other AppUser properties' nullability/length matches entity
+                entity.Property(u => u.DisplayName).IsRequired(); // Required in AppUser.cs
+                entity.Property(u => u.AvatarUrl).IsRequired(false); // Nullable in AppUser.cs
+                entity.Property(u => u.TimeZone).IsRequired(false); // Nullable in AppUser.cs
+                entity.Property(u => u.CurrentWorkload).IsRequired(false); // Nullable in AppUser.cs
+                entity.Property(u => u.Location).IsRequired(false); // Nullable in AppUser.cs
+
+                // HasMany for AssignedTasks: FK now points to AppUser.Id (PK)
+                entity.HasMany(u => u.AssignedTasks)
+                      .WithOne(pt => pt.Assignee)
+                      .HasForeignKey(pt => pt.AssigneeId)
+                      .HasPrincipalKey(u => u.Id) // <--- CRITICAL CHANGE: Now points to AppUser.Id (PK)
+                      .IsRequired(false)          // Tasks can be unassigned
+                      .OnDelete(DeleteBehavior.SetNull); // Tasks become unassigned if user deleted
+            });
+            // ProjectTask Configuration:
+            modelBuilder.Entity<ProjectTask>(entity =>
+            {
+                entity.HasKey(t => t.Id);
+
+
+
+
+                // Project relationship (unchanged)
+                entity.HasOne(t => t.Project)
+                      .WithMany(p => p.Tasks)
+                      .HasForeignKey(t => t.ProjectId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(t => t.Status)
+                   .HasConversion<string>()
+                   .HasColumnType("nvarchar(50)");
+
+
+            });
+
+
+
         }
     }
 }
+        

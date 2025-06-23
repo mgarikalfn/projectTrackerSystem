@@ -19,20 +19,20 @@ namespace projectTracker.Domain.Entities
         // Basic properties for local system users
         public string FirstName { get; set; } = String.Empty;
         public string LastName { get; set; } = String.Empty;
-        public bool IsActive { get; set; } = true; 
+        public bool IsActive { get; set; } = true;
 
         // Properties for users synced from external project management tools (e.g., Jira)
-        public string AccountId { get; set; } = String.Empty; 
-        public string DisplayName { get; set; } = String.Empty; 
-        public string AvatarUrl { get; set; } = String.Empty; 
-        public string TimeZone { get; set; } = String.Empty; 
-        public decimal CurrentWorkload { get; set; } // Calculated metric (can be synced or derived)
-        public string Location { get; set; } = String.Empty; // User's location from external system
+        public string? AccountId { get; set; } // Marked as nullable in C#
+        public string? DisplayName { get; set; } = String.Empty; 
+        public string? AvatarUrl { get; set; } = String.Empty; 
+        public string? TimeZone { get; set; } = String.Empty; 
+        public decimal? CurrentWorkload { get; set; } // Calculated metric (can be synced or derived)
+        public string? Location { get; set; } = String.Empty; // User's location from external system
 
        
         public UserSource Source { get; set; } = UserSource.Local; // Defaults to Local for new local users
 
         public bool MustChangePassword { get; set; } = false;
-        public ICollection<ProjectTask> AssignedTasks { get; set; }
+        public ICollection<ProjectTask>? AssignedTasks { get; set; } = new List<ProjectTask>();
     }
 }

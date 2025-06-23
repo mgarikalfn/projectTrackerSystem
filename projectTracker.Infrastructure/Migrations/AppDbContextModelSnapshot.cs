@@ -153,18 +153,17 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("AccountId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("AvatarUrl")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("CurrentWorkload")
+                    b.Property<decimal?>("CurrentWorkload")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("DisplayName")
@@ -190,7 +189,6 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Location")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("LockoutEnabled")
@@ -226,7 +224,6 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("TimeZone")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("TwoFactorEnabled")
@@ -237,6 +234,10 @@ namespace projectTracker.Infrastructure.Migrations
                         .HasColumnType("nvarchar(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .IsUnique()
+                        .HasFilter("[AccountId] IS NOT NULL");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -348,17 +349,22 @@ namespace projectTracker.Infrastructure.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("AppUserId")
+                    b.Property<string>("AssigneeId")
+                        .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("AssigneeId")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("AssigneeName")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrentSprintName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CurrentSprintState")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -393,8 +399,9 @@ namespace projectTracker.Infrastructure.Migrations
                     b.Property<Guid?>("SprintId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("StatusChangedDate")
                         .HasColumnType("datetime2");
@@ -417,7 +424,7 @@ namespace projectTracker.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AppUserId");
+                    b.HasIndex("AssigneeId");
 
                     b.HasIndex("ProjectId");
 
@@ -728,9 +735,10 @@ namespace projectTracker.Infrastructure.Migrations
 
             modelBuilder.Entity("projectTracker.Domain.Entities.ProjectTask", b =>
                 {
-                    b.HasOne("projectTracker.Domain.Entities.AppUser", null)
+                    b.HasOne("projectTracker.Domain.Entities.AppUser", "Assignee")
                         .WithMany("AssignedTasks")
-                        .HasForeignKey("AppUserId");
+                        .HasForeignKey("AssigneeId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("projectTracker.Domain.Aggregates.Project", "Project")
                         .WithMany("Tasks")
@@ -741,6 +749,8 @@ namespace projectTracker.Infrastructure.Migrations
                     b.HasOne("projectTracker.Domain.Entities.Sprint", "Sprint")
                         .WithMany()
                         .HasForeignKey("SprintId");
+
+                    b.Navigation("Assignee");
 
                     b.Navigation("Project");
 
