@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using projectTracker.Domain.Aggregates;
 using projectTracker.Domain.Entities;
 
 namespace projectTracker.Application.Interfaces
@@ -17,7 +18,7 @@ namespace projectTracker.Application.Interfaces
         //IRepository<RolePrivilege> RolePrivilegeRepository { get; }
         IRepository<Permission> PermissionRepository { get; }
         IRepository<RolePermission> RolePermissionRepository { get; }
-
+        IRepository<Project> ProjectRepository { get; }
         // Transaction Management
         Task BeginTransactionAsync();
         Task CommitAsync();

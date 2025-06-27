@@ -26,12 +26,7 @@ namespace projectTracker.Api.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Gets an overview of all sprints for a specific project, including summary metrics for each.
-        /// </summary>
-        /// <param name="projectKey">The key of the project (e.g., "PROJ").</param>
-        /// <param name="ct">Cancellation token.</param>
-        /// <returns>A ProjectSprintOverviewDto containing all sprints and their reports.</returns>
+      
         [HttpGet("projects/{projectKey}/sprint-overview")]
        
         public async Task<IActionResult> GetProjectSprintOverview(string projectKey, CancellationToken ct)
@@ -54,12 +49,6 @@ namespace projectTracker.Api.Controllers
             }
         }
 
-        /// <summary>
-        /// Gets a detailed report for a specific sprint.
-        /// </summary>
-        /// <param name="sprintId">The GUID ID of the sprint in your local database.</param>
-        /// <param name="ct">Cancellation token.</param>
-        /// <returns>A detailed SprintReportDto.</returns>
         [HttpGet("sprints/{sprintId}")]
         
         public async Task<IActionResult> GetSprintReport(Guid sprintId, CancellationToken ct)

@@ -26,7 +26,7 @@ namespace projectTracker.Infrastructure.Mapping
             CreateMap<CreatePermissionDto, Permission>();
             CreateMap<UpdatePermissionDto, Permission>();
 
-            
+
             CreateMap<Project, ProjectResponseDto>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))
                 .ForMember(dest => dest.Key, opt => opt.MapFrom(src => src.Key))
@@ -49,7 +49,16 @@ namespace projectTracker.Infrastructure.Mapping
                     StoryPointsTotal = src.Progress.StoryPointsTotal,
                     ActiveBlockers = src.Progress.ActiveBlockers,
                     RecentUpdates = src.Progress.RecentUpdates
+                }))
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.OverallProjectStatus))
+                .ForMember(dest => dest.TargetEndDate, opt => opt.MapFrom(src => src.TargetEndDate))
+                .ForMember(dest => dest.Owner, opt => opt.MapFrom(src => new OwnerDto
+                {
+                    Name = src.Owner.Name,
+                    ContactInfo = src.Owner.ContactInfo
                 }));
+
+
         }
         
     }

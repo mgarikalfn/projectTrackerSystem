@@ -262,22 +262,23 @@ namespace projectTracker.Infrastructure.Sync
                                 name: projectDto.Name,
                                 Lead: projectDto.LeadName,
                                 Description: projectDto.Description
+                            // The new strategic fields will be initialized to their defaults (e.g., NotStarted, null)
                             );
                             _dbContext.Projects.Add(project);
                             _logger.LogDebug("Added new project {ProjectKey}", project.Key);
                         }
                         else
                         {
-                            project.UpdateDetails(
+                            // --- FIX APPLIED HERE: Call the new UpdateJiraSyncedDetails method ---
+                            project.UpdateJiraSyncedDetails(
                                 name: projectDto.Name,
                                 description: projectDto.Description,
                                 leadName: projectDto.LeadName
                             );
-                            _logger.LogDebug("Updated existing project {ProjectKey}", project.Key);
+                            _logger.LogDebug("Updated existing project {ProjectKey} with Jira synced details", project.Key);
                         }
 
                         // Fetch and update project metrics/health (assuming your Project has these fields)
-                        // Make sure GetProjectMetricsAsync is implemented in your adapter
                         var metricsDto = await _adapter.GetProjectMetricsAsync(projectDto.Key, ct);
                         if (metricsDto != null)
                         {
@@ -312,7 +313,7 @@ namespace projectTracker.Infrastructure.Sync
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to complete project sync.");
-                throw;
+                throw; // Re-throw if it's a critical error that should stop the sync process
             }
         }
 

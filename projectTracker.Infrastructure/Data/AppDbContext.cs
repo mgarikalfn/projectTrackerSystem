@@ -112,7 +112,7 @@ namespace ProjectTracker.Infrastructure.Data
                     .IsUnique();
             });
 
-
+            modelBuilder.Entity<Project>().OwnsOne(p => p.Owner);
             // Configure RolePermission with length limits
             modelBuilder.Entity<Permission>(entity =>
             {

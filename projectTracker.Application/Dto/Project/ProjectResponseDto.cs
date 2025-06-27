@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using projectTracker.Domain.Enums;
 
 namespace projectTracker.Application.Dto.Project
 {
@@ -16,6 +18,10 @@ namespace projectTracker.Application.Dto.Project
 
         public ProjectHealthDto Health { get; set; }
         public ProgressMetricsDto Progress { get; set; }
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public OverallProjectStatus Status { get; set; }
+        public OwnerDto Owner { get; set; }
+        public DateTime TargetEndDate {get; set;}
 
         public bool Critical { get; set; }
     }
@@ -36,6 +42,12 @@ namespace projectTracker.Application.Dto.Project
         public decimal StoryPointsTotal { get; set; }
         public int ActiveBlockers { get; set; }
         public int RecentUpdates { get; set; }
+    }
+
+    public class OwnerDto
+    {
+        public string Name { get; set; }
+        public string ContactInfo { get; set; }
     }
 
 }

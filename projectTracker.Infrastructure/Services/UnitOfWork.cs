@@ -1,4 +1,5 @@
 ﻿using projectTracker.Application.Interfaces;
+using projectTracker.Domain.Aggregates;
 using projectTracker.Domain.Entities;
 using ProjectTracker.Infrastructure.Data;
 
@@ -15,6 +16,7 @@ namespace projectTracker.Infrastructure.Services
         private IRepository<UserRoleMapping>? _userRoleMappingRepository;
         private IRepository<Permission>? _permissionRepository;
         private IRepository<RolePermission>? _rolePermissionRepository;
+        private IRepository<Project>? _projectRepository;
 
         public UnitOfWork(AppDbContext context)
         {
@@ -36,6 +38,9 @@ namespace projectTracker.Infrastructure.Services
 
         public IRepository<RolePermission> RolePermissionRepository =>
            _rolePermissionRepository ??= new Repository<RolePermission>(_context) as IRepository<RolePermission>;
+
+        IRepository<Project> IUnitOfWork.ProjectRepository =>
+              _projectRepository ??= new Repository<Project>(_context) as IRepository<Project>;
 
         // Transaction Methods
         public async Task BeginTransactionAsync()

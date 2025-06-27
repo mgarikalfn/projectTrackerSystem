@@ -118,7 +118,7 @@ namespace projectTracker.Infrastructure.Services
             return await BuildSprintReportDto(sprint, tasksInSprint, ct);
         }
 
-        // Helper method to build a single SprintReportDto
+        
         private async Task<SprintReportDto> BuildSprintReportDto(Sprint sprint, List<ProjectTask> tasksInSprint, CancellationToken ct)
         {
             // Metrics Calculations
