@@ -61,7 +61,7 @@ namespace projectTracker.Application.Dto
         public DateTime? DueDate { get; set; }
 
         // Custom field for Story Points (Jira ID 10035, typically)
-        [JsonPropertyName("customfield_10035")]
+        [JsonPropertyName("customfield_10038")]
         public decimal? StoryPoints { get; set; }
 
         [JsonPropertyName("issuetype")]

@@ -102,6 +102,7 @@ public class UserController : ControllerBase
     {
 
         var users = await _userManager.Users.ToListAsync();
+       
         var userDtos = new List<UserResponseDto>();
 
         foreach (var user in users)

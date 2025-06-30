@@ -64,7 +64,7 @@ namespace projectTracker.Application.Features.Menu.Command
             }
 
             // ParentId change check
-            if (request.ParentId != null && menuItem.ParentId != request.ParentId)
+            if ( menuItem.ParentId != request.ParentId)
             {
                 hasChanges = true;
                 menuItem.ParentId = request.ParentId;

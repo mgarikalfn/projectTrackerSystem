@@ -29,6 +29,22 @@ namespace projectTracker.Infrastructure.Extensions
                 options.Password.RequireDigit = true;
                 options.Password.RequiredLength = 8;
                 options.User.RequireUniqueEmail = true;
+                options.User.RequireUniqueEmail = false; // Keep this if you allow null/duplicate emails for sync
+                                                         // FIX: Add allowed special characters for UserName.
+                                                         // Jira Account IDs often contain ':' and '-'.
+                                                         // Include common characters like '.', '_', '@' if you might use emails as usernames elsewhere
+                options.User.AllowedUserNameCharacters =
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+:"; // ADDED ':' and '-'
+
+                // Configure Password options (the dummy password "TempPass!123" is usually fine with default options,
+                // but check if your custom settings are stricter if you still face password errors)
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireNonAlphanumeric = true; // Make sure this is true for "TempPass!123"
+                options.Password.RequireUppercase = true;
+                options.Password.RequiredLength = 6;
+                options.Password.RequiredUniqueChars = 1;
+
             })
                 .AddEntityFrameworkStores<AppDbContext>()
                 .AddDefaultTokenProviders();

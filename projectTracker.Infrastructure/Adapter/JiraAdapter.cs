@@ -1,4 +1,4 @@
-﻿// ProjectTracker.Infrastructure/Adapter/JiraAdapter.cs
+﻿
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,7 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using projectTracker.Application.Dto; // Reference to your DTOs
+using projectTracker.Application.Dto; 
 using projectTracker.Application.Interfaces;
 
 namespace projectTracker.Infrastructure.Adapter
@@ -22,7 +22,7 @@ namespace projectTracker.Infrastructure.Adapter
         private readonly HttpClient _httpClient;
         private readonly string _jiraAgileBaseUrl;
         private readonly ILogger<JiraAdapter> _logger;
-        private readonly string _storyPointsCustomFieldId; // Custom field ID for Story Points
+        private readonly string _storyPointsCustomFieldId; 
         private readonly string _epicLinkCustomFieldId;
         private readonly string _sprintCustomFieldId;
         public JiraAdapter(HttpClient httpClient, IConfiguration config, ILogger<JiraAdapter> logger)
@@ -34,7 +34,8 @@ namespace projectTracker.Infrastructure.Adapter
             var token = config["Jira:ApiToken"];
             var baseUrl = config["Jira:BaseUrl"];
             // Get custom field ID from configuration, default to 10035 if not found
-            _storyPointsCustomFieldId = config["Jira:CustomFieldIds:StoryPoints"] ?? "customfield_10035";
+            _storyPointsCustomFieldId = config["Jira:CustomFieldIds:StoryPoints"] ?? "customfield_10038" +
+                "";
             _epicLinkCustomFieldId = config["Jira:CustomFieldIds:EpicLink"];
             _sprintCustomFieldId = config["Jira:CustomFieldIds:Sprint"];
 
