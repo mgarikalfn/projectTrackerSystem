@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace projectTracker.Application.Extensions
 {
@@ -23,9 +24,14 @@ namespace projectTracker.Application.Extensions
         public bool HasPreviousPage => PageNumber > 1;
         public bool HasNextPage =>  PageNumber*PageSize < TotalCount;
 
-        public static PagedList<T> Create(List<T> items, int totalCount, int pageNumber, int pageSize)
+        public static async Task<PagedList<T>> Create(IQueryable<T> query, int pageNumber, int pageSize)
         {
-            return new PagedList<T>(items, totalCount, pageNumber, pageSize);
+            var totalCount = await query.CountAsync();
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+            return new (items, totalCount, pageNumber, pageSize);
         }
     }
 }

@@ -135,10 +135,10 @@ namespace projectTracker.Api.Controllers
             if (!updateResult.Succeeded)
             {
                 _logger.LogError("Failed to update MustChangePassword flag for user {UserId}: {Errors}", user.Id, string.Join(", ", updateResult.Errors.Select(e => e.Description)));
-                // Decide how to handle this critical failure; may require manual intervention
+               
             }
 
-            // Optionally, re-sign the user in if needed (e.g., if security stamp changed)
+            
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             _logger.LogInformation("Password changed successfully for user {Email}", user.Email);

@@ -6,6 +6,7 @@ using projectTracker.Application.Dto;
 using projectTracker.Application.Dto.User;
 using Microsoft.AspNetCore.Authorization;
 using projectTracker.Application.Interfaces;
+using projectTracker.Application.Extensions;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -97,35 +98,99 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
-   
-    public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetAllUsers()
-    {
 
-        var users = await _userManager.Users.ToListAsync();
+    public async Task<ActionResult<PagedList<UserResponseDto>>> GetAllUsers(
+    [FromQuery] UserFilterDto filter)
+    {
+        // Start with base query
+        var query = _userManager.Users.AsQueryable();
+
+        if (!string.IsNullOrEmpty(filter.SearchTerm))
+        {
+            
+            var term = filter.SearchTerm.ToLower();
+            query = query.Where(u =>
+                u.DisplayName.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term) ||
+                u.FirstName.ToLower().Contains(term) ||
+                u.LastName.ToLower().Contains(term));
+                
+        }
+        if (!string.IsNullOrWhiteSpace(filter.Role))
+        {
+            var usersInRole = await _userManager.GetUsersInRoleAsync(filter.Role);
+            var userIds = usersInRole.Select(u => u.Id).ToList();
+            query = query.Where(u => userIds.Contains(u.Id));
+        }
+
        
+            if (filter.Source.HasValue)
+            {
+                query = query.Where(u => u.Source == filter.Source.Value);
+            }
+           
+
+        // Sorting
+        query = filter.SortBy?.ToLower() switch
+        {
+            "email" => filter.SortDescending
+                ? query.OrderByDescending(u => u.Email)
+                : query.OrderBy(u => u.Email),
+            "displayname" => filter.SortDescending
+                ? query.OrderByDescending(u => u.DisplayName)
+                : query.OrderBy(u => u.DisplayName),
+            _ => filter.SortDescending
+                ? query.OrderByDescending(u => u.FirstName)
+                : query.OrderBy(u => u.FirstName)
+        };
+
+        // Get total count (before pagination)
+        var totalCount = await query.CountAsync();
+
+        // Apply pagination
+        var users = await query
+            .Skip((filter.PageNumber - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync();
+
+        // Map to DTO and handle invalid emails
         var userDtos = new List<UserResponseDto>();
+        var invalidEmailPatterns = new[] { "@jira-unassigned.invalid", "5b6c7b3afbc68529c6c47967" };
 
         foreach (var user in users)
         {
+            var isInvalidEmail = invalidEmailPatterns.Any(p =>
+                user.Email?.Contains(p, StringComparison.OrdinalIgnoreCase) == true);
+
             var roles = await _userManager.GetRolesAsync(user);
             userDtos.Add(new UserResponseDto
             {
                 Id = user.Id,
-                Email = user.Email,
+                Email = isInvalidEmail ? string.Empty : user.Email,
                 DisplayName = user.DisplayName,
                 Source = user.Source.ToString(),
                 IsActive = user.IsActive,
-                FirstName = user.FirstName, 
-                LastName = user.LastName,   
+                FirstName = user.FirstName,
+                LastName = user.LastName,
                 Roles = roles.ToList()
             });
         }
 
-        _logger.LogInformation("Retrieved {UserCount} users.", userDtos.Count);
-        return Ok(userDtos);
+        // Return paginated response
+        var response = new PagedList<UserResponseDto>(
+            userDtos,
+            totalCount,
+            filter.PageNumber,
+            filter.PageSize
+        );
+
+        _logger.LogInformation("Retrieved {UserCount} users (Page {PageNumber}).",
+            userDtos.Count, filter.PageNumber);
+
+        return Ok(response);
     }
 
-   
+
     [HttpGet("{id}")]
    
     public async Task<ActionResult<UserResponseDto>> GetUserById(string id)

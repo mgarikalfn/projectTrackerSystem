@@ -72,14 +72,14 @@ namespace projectTracker.Infrastructure.Sync
 
             try
             {
-              //  _logger.LogInformation("Executing User Synchronization...");
-               // await SyncUsersAsync(ct);
+               _logger.LogInformation("Executing User Synchronization...");
+                await SyncUsersAsync(ct);
 
-               // _logger.LogInformation("Executing Project Synchronization...");
-               // await SyncProjectsAsync(ct);
+                _logger.LogInformation("Executing Project Synchronization...");
+               await SyncProjectsAsync(ct);
 
-               // _logger.LogInformation("Executing Board and Sprint Synchronization...");
-               // await SyncBoardsAndSprintsAsync(ct);
+               _logger.LogInformation("Executing Board and Sprint Synchronization...");
+               await SyncBoardsAndSprintsAsync(ct);
 
                 _logger.LogInformation("Executing Task Synchronization...");
                 var (created, updated) = await _syncTasks.ExecuteAsync(ct);

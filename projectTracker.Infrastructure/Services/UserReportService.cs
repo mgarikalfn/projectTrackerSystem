@@ -70,7 +70,7 @@ namespace projectTracker.Infrastructure.Services
             return projectSummaries;
         } 
 
-        public async Task<UserProjectContributionDetailDto?> GetUserProjectContributionDetailAsync(string userId, string projectId, CancellationToken ct)
+      public async Task<UserProjectContributionDetailDto?> GetUserProjectContributionDetailAsync(string userId, string projectId, CancellationToken ct)
         {
             _logger.LogInformation("Fetching detailed contribution report for user ID: {UserId} in project ID: {ProjectId}", userId, projectId);
 
@@ -144,7 +144,7 @@ namespace projectTracker.Infrastructure.Services
             var sprintsInvolvedIn = await _dbContext.Sprints
                 .AsNoTracking()
                 .Where(s => involvedSprintJiraIds.Contains(s.JiraId))
-                .Select(s => new SprintListItemDto { Id = s.Id, Name = s.Name, State = s.State.ToString() })
+                .Select(s => new SprintListItemDto { Id = s.Id, JiraId = s.JiraId, Name = s.Name, State = s.State.ToString() })
                 .ToListAsync(ct);
 
             var detailReport = new UserProjectContributionDetailDto
@@ -179,8 +179,8 @@ namespace projectTracker.Infrastructure.Services
                     ParentKey = t.ParentKey,
                     Priority = t.Priority,
                     CurrentSprintJiraId = t.JiraSprintId,
-                    CurrentSprintName = t.Sprint?.Name,
-                    CurrentSprintState = t.Sprint?.State.ToString()
+                    CurrentSprintName = sprintsInvolvedIn.FirstOrDefault(x => x.JiraId == t.JiraSprintId)?.Name, // Fix for CS0029 and CS1662
+                    CurrentSprintState = sprintsInvolvedIn.FirstOrDefault(x => x.JiraId == t.JiraSprintId)?.State
                 }).ToList(),
                 TaskStatusCounts = taskStatusCounts,
                 IssueTypeCounts = issueTypeCounts,

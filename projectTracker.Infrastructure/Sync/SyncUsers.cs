@@ -42,7 +42,7 @@ namespace projectTracker.Infrastructure.Sync
                 var jiraUsers = await _adapter.GetAppUsersAsync(ct);
                 _logger.LogDebug("Retrieved {UserCount} users from Jira", jiraUsers.Count);
 
-                // Fetch existing users with tracking (removed AsNoTracking)
+           
                 var existingUsers = await _dbContext.Users.ToListAsync(ct);
 
                 // Create lookup dictionaries

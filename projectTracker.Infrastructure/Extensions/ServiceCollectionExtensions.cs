@@ -29,10 +29,7 @@ namespace projectTracker.Infrastructure.Extensions
                 options.Password.RequireDigit = true;
                 options.Password.RequiredLength = 8;
                 options.User.RequireUniqueEmail = true;
-                options.User.RequireUniqueEmail = false; // Keep this if you allow null/duplicate emails for sync
-                                                         // FIX: Add allowed special characters for UserName.
-                                                         // Jira Account IDs often contain ':' and '-'.
-                                                         // Include common characters like '.', '_', '@' if you might use emails as usernames elsewhere
+                options.User.RequireUniqueEmail = false; 
                 options.User.AllowedUserNameCharacters =
                     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+:"; // ADDED ':' and '-'
 

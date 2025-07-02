@@ -73,6 +73,7 @@ namespace projectTracker.Application.Dto.Project
     public class SprintListItemDto
     {
         public Guid Id { get; set; }
+        public int JiraId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string State { get; set; } = string.Empty; // e.g., "active", "closed", "future"
     }
